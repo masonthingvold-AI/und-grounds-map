@@ -1,0 +1,43 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -97.101959,
+              47.909349999999996
+            ],
+            [
+              -97.049911,
+              47.909349999999996
+            ],
+            [
+              -97.049911,
+              47.941928000000004
+            ],
+            [
+              -97.101959,
+              47.941928000000004
+            ],
+            [
+              -97.101959,
+              47.909349999999996
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "BND-01",
+        "name": "Main campus boundary",
+        "kind": "campus",
+        "site": "main",
+        "needs_tracing": true,
+        "notes": "Starting box around UND-owned parcels plus about two blocks. Redraw by hand to the real edge. Everything outside is dimmed."
+      }
+    }
+  ]
+}

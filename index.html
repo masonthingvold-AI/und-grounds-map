@@ -71,6 +71,15 @@
     aside section{display:none} aside section.show{display:block}
     .btn,.item{min-height:40px} .item{align-items:center}
   }
+  @media (pointer:coarse){
+    .leaflet-draw-toolbar a{width:44px!important;height:44px!important;background-size:330px 44px!important;line-height:44px!important}
+    .leaflet-draw-toolbar .leaflet-draw-draw-polyline{background-position:-2px -2px!important}
+    .leaflet-draw-toolbar .leaflet-draw-draw-polygon{background-position:-46px -2px!important}
+    .leaflet-draw-toolbar .leaflet-draw-draw-circlemarker{background-position:-306px -2px!important}
+    .leaflet-draw-toolbar .leaflet-draw-edit-edit{background-position:-222px -2px!important}
+    .leaflet-touch .leaflet-bar a{width:44px;height:44px;line-height:44px}
+    header button{padding:8px 12px}
+  }
   @media print{
     header button,aside,#tabbar,.leaflet-control{display:none!important}
     #app{grid-template-columns:1fr} #map{grid-column:1/3}
@@ -201,10 +210,21 @@
   const mowColors = config.mowing_category_colors || {};
   const tierColors = config.snow_tier_colors || {};
   const typeIcons = {facility:"#00722F", material_storage:"#B8860B", equipment:"#2E86AB", hydrant:"#D7263D", salt_box:"#F46036", irrigation:"#1F9E89", tree:"#3F7D20", other:"#6b6f68"};
+  const parcelColors = config.parcel_owner_colors || {};
   function styleFor(layerKey, f){
     const p = f.properties || {};
     const w = work[p.id] || {};
     const dash = p.needs_tracing ? "6 4" : null;
+    if(layerKey==="parcels"){
+      const c = parcelColors[p.owner_class] || parcelColors.other || "#AEAEAE";
+      return {color:c, weight:1.5, opacity:.9, fillColor:c, fillOpacity:.10, dashArray:null};
+    }
+    if(layerKey==="boundary"){
+      const kindColors = {campus:"#111111", zone:"#00722F", crew_area:"#2E86AB", keep_out:"#D7263D", sprayed:"#F46036", bed:"#7B5EA7"};
+      const c = kindColors[p.kind] || "#111111";
+      const keep = p.kind==="keep_out" || p.kind==="sprayed";
+      return {color:c, weight: p.kind==="campus"?3:2, dashArray: keep ? "4 4" : dash, fillColor:c, fillOpacity: keep ? .25 : 0.0};
+    }
     if(layerKey==="mowing_areas"){
       const c = mowColors[p.category] || "#009A44";
       return {color:c, weight:2, dashArray:dash, fillColor:c, fillOpacity: w.status==="done"?0.12:0.35};
@@ -247,7 +267,7 @@
       onEachFeature: (f, lyr) => {
         lyr._layerKey = key;
         lyr.on("click", e => { L.DomEvent.stop(e); select(key, f, lyr); });
-        if(key==="mowing_areas" && f.geometry.type!=="Point"){
+        if((key==="mowing_areas" || (key==="boundary" && f.properties.kind!=="campus")) && f.geometry.type!=="Point"){
           lyr.bindTooltip(f.properties.name, {permanent:true, direction:"center", className:"lbl"});
         } else {
           lyr.bindTooltip(f.properties.name, {sticky:true});
@@ -258,9 +278,20 @@
     groups[key] = g;
     return g;
   }
+  let maskLayer = null;
+  function updateMask(){
+    if(maskLayer){ map.removeLayer(maskLayer); maskLayer = null; }
+    if(config.mask_outside_boundary===false) return;
+    const campus = (layersData.boundary?.features||[]).filter(f => f.properties.kind==="campus" && f.geometry.type==="Polygon");
+    if(!campus.length) return;
+    const world = [[-90,-180],[-90,180],[90,180],[90,-180]];
+    const holes = campus.map(f => f.geometry.coordinates[0].map(([lon,lat]) => [lat,lon]));
+    maskLayer = L.polygon([world, ...holes], {stroke:false, fillColor:"#0b1f12", fillOpacity:.55, interactive:false, pane:"tilePane"}).addTo(map);
+  }
   function rebuildAll(){
     index.length = 0; selected = null;
     for(const l of config.layers) buildLayer(l.file);
+    updateMask();
     if(typeof renderDetail==="function"){ renderDetail(); renderResults(); }
     if(editMode && drawControl) attachDraw();
   }
@@ -281,10 +312,17 @@
     toggles.appendChild(row);
   }
 
+  updateMask();
+  map.on(L.Draw.Event.EDITED, updateMask);
   // legend
   const legend = document.getElementById("legend");
   const lg = [];
-  lg.push(`<div class="muted" style="margin:4px 0 2px">Mowing categories</div>`);
+  lg.push(`<div class="muted" style="margin:4px 0 2px">Parcels (City of Grand Forks records)</div>`);
+  const ownerNames = {und_state:"UND / State of ND / Board of Higher Ed", alumni_foundation:"UND Alumni Assoc. and Foundation / Research Foundation", aerospace_foundation:"UND Aerospace Foundation", rea:"Ralph Engelstad Arena", bronson:"Bronson property", greek:"Greek alumni corporations", other:"Other"};
+  for(const [k,c] of Object.entries(parcelColors)) lg.push(`<div class="row"><span class="sw" style="background:${c};opacity:.6"></span><span>${ownerNames[k]||k}</span></div>`);
+  lg.push(`<div class="muted" style="margin:8px 0 2px">Boundary layer</div>`);
+  lg.push(`<div class="row"><span class="sw" style="border:2px solid #111;background:none"></span><span>Campus edge (outside is dimmed)</span></div><div class="row"><span class="sw" style="background:#D7263D;opacity:.4"></span><span>Keep out / sprayed</span></div>`);
+  lg.push(`<div class="muted" style="margin:8px 0 2px">Mowing categories</div>`);
   for(const [k,c] of Object.entries(mowColors)) lg.push(`<div class="row"><span class="sw" style="background:${c}"></span><span>${k}</span></div>`);
   lg.push(`<div class="muted" style="margin:8px 0 2px">Snow tiers</div>`);
   const tierNames = {1:"T1 Life safety and accessibility (open 6:30 a.m.)",2:"T2 Primary circulation (open 7:30 a.m.)",3:"T3 Full service (noon next day)",4:"T4 Cleanup and haul (by request)"};
@@ -398,7 +436,7 @@
     const it = index.find(x=>x.feature.properties.id===gj.properties.id); if(it) select(key, it.feature, it.layer);
   }
   function nextId(key){
-    const prefix = {mowing_areas:"MOW", snow_routes:"SNOW", assets:"AST"}[key] || key.toUpperCase().slice(0,4);
+    const prefix = {mowing_areas:"MOW", snow_routes:"SNOW", assets:"AST", boundary:"BND", parcels:"PAR"}[key] || key.toUpperCase().slice(0,4);
     let n = layersData[key].features.length + 1, id;
     do { id = `${prefix}-${String(n++).padStart(2,"0")}`; } while(layersData[key].features.some(f=>f.properties.id===id));
     return id;
@@ -407,7 +445,8 @@
   const undoStack = []; let dirty = 0;
   function snapshot(){ undoStack.push(JSON.stringify(layersData)); if(undoStack.length>30) undoStack.shift(); }
   function markDirty(){ dirty++; updateEditStatus(); }
-  function updateEditStatus(){ const el = document.getElementById("editStatus"); if(el) el.textContent = dirty ? `${dirty} unsaved change${dirty>1?"s":""}. ${repoDir?"Save to repo writes them into data/.":"Connect the repo folder to save directly, or download."}` : (repoDir ? "Saved. Repo folder connected." : "No unsaved changes."); }
+  const served = location.protocol!=="file:" && /^(localhost|127\.|10\.|192\.168\.|172\.)/.test(location.hostname);
+  function updateEditStatus(){ const el = document.getElementById("editStatus"); if(el) el.textContent = dirty ? `${dirty} unsaved change${dirty>1?"s":""}. ${served?"Save writes them to the computer running tools/serve.py.":repoDir?"Save to repo writes them into data/.":"Connect the repo folder to save directly, or download."}` : (served ? "Saved. Served from tools/serve.py." : repoDir ? "Saved. Repo folder connected." : "No unsaved changes."); }
   document.getElementById("btnUndo").onclick = () => {
     if(!undoStack.length) return toast("Nothing to undo");
     const snap = JSON.parse(undoStack.pop());
@@ -429,7 +468,17 @@
       updateEditStatus(); toast("Repo folder connected. Cmd/Ctrl+S saves.");
     }catch(e){ /* cancelled */ }
   };
+  async function saveViaServer(){
+    if(location.protocol==="file:") return false;
+    try{
+      const layers = {}; for(const l of config.layers) layers[l.file] = {type:"FeatureCollection", features: layersData[l.file].features};
+      const r = await fetch("/save", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({layers, bundle: bundleJS()})});
+      if(!r.ok) return false;
+      const j = await r.json(); dirty = 0; updateEditStatus(); toast(`Saved on the computer running the server (${(j.written||[]).length} files). Commit when ready.`); return true;
+    }catch(e){ return false; }
+  }
   async function saveToRepo(){
+    if(await saveViaServer()) return;
     if(!repoDir){ if(window.showDirectoryPicker){ await document.getElementById("btnConnectRepo").onclick(); if(!repoDir) return; } else { return downloadAll(); } }
     try{
       for(const l of config.layers) await writeFile(repoDir, `${l.file}.geojson`, JSON.stringify({type:"FeatureCollection", features: layersData[l.file].features}, null, 2));
@@ -575,7 +624,7 @@
     if(lyr.setStyle) lyr.setStyle(styleFor(key, gj));
     groups[key].addLayer(lyr);
     index.push({layerKey:key, feature:gj, layer:lyr});
-    select(key, gj, lyr); renderResults();
+    select(key, gj, lyr); renderResults(); if(key==="boundary") updateMask();
   });
   map.on(L.Draw.Event.EDITED, e => {
     snapshot();
@@ -584,6 +633,8 @@
     renderDetail();
   });
   function defaultProps(key){
+    if(key==="boundary") return {kind:"zone", notes:""};
+    if(key==="parcels") return {owner_name:"", owner_class:"other", parcel:"", address:"", acres:"", notes:""};
     if(key==="mowing_areas") return {category:"UND Green Space", acres:"", crew:"", frequency:"weekly", mower:"", notes:""};
     if(key==="snow_routes") return {kind:"walk_route", tier:2, owner:"Facilities", machine:"", operator:"", est_hours:"", window_hours:"", notes:""};
     return {type:"other", status:"ok", notes:""};

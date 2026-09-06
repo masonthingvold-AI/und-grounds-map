@@ -2,10 +2,11 @@
 
 Interactive campus map for UND Facilities Management, Grounds. Mowing areas, snow routes, equipment, and a simple work tracker, on satellite or street basemaps. Works on a phone in the field and on a laptop at a desk.
 
-**Open it:** double-click `index.html`, or use the GitHub Pages link once it is turned on.
+**Open it:** double-click `index.html`, or for the iPad and phones run `python3 tools/serve.py` on the Mac and open the address it prints. GitHub Pages link once it is turned on.
 
 ## What it does
 
+- Only UND: the city's parcel records show what UND owns, a hand drawn campus boundary sets the edge, and everything outside is dimmed
 - Satellite and street basemaps, switch in the top right corner
 - Layers: mowing areas (colored by category, with acreage), snow routes (colored by tier), equipment and assets
 - Click anything to see its details

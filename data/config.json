@@ -8,6 +8,16 @@
   "zoom": 15,
   "layers": [
     {
+      "file": "boundary",
+      "label": "Campus boundary",
+      "defaultOn": true
+    },
+    {
+      "file": "parcels",
+      "label": "UND owned parcels (city records)",
+      "defaultOn": true
+    },
+    {
       "file": "mowing_areas",
       "label": "Mowing areas",
       "defaultOn": true
@@ -146,6 +156,33 @@
       "plow",
       "truck",
       "other"
+    ],
+    "parcels.owner_class": [
+      "und_state",
+      "alumni_foundation",
+      "aerospace_foundation",
+      "rea",
+      "bronson",
+      "greek",
+      "other"
+    ],
+    "boundary.kind": [
+      "campus",
+      "zone",
+      "crew_area",
+      "keep_out",
+      "sprayed",
+      "bed"
     ]
-  }
+  },
+  "parcel_owner_colors": {
+    "und_state": "#009A44",
+    "alumni_foundation": "#B8860B",
+    "aerospace_foundation": "#2E86AB",
+    "rea": "#D7263D",
+    "bronson": "#5DBB63",
+    "greek": "#7B5EA7",
+    "other": "#AEAEAE"
+  },
+  "mask_outside_boundary": true
 }
