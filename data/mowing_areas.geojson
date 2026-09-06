@@ -38,8 +38,10 @@
         "crew": "",
         "frequency": "weekly",
         "mower": "Toro 4100 D 10'",
+        "ownership": "UND",
         "needs_tracing": true,
-        "notes": "Core academic campus between University Ave and 6th Ave N. Split into sub-areas when traced."
+        "notes": "Core academic campus between University Ave and 6th Ave N. Split into sub-areas when traced.",
+        "site": "main"
       }
     },
     {
@@ -80,7 +82,8 @@
         "frequency": "2x weekly",
         "mower": "Toro Sidewinder / 3280 D",
         "needs_tracing": true,
-        "notes": "Practice and game fields. Height and stripe pattern differ from general turf."
+        "notes": "Practice and game fields. Height and stripe pattern differ from general turf.",
+        "site": "main"
       }
     },
     {
@@ -121,7 +124,8 @@
         "frequency": "weekly",
         "mower": "",
         "needs_tracing": true,
-        "notes": "Ralph Engelstad Arena. REA is a separate owner on the snow map."
+        "notes": "Ralph Engelstad Arena. REA is a separate owner on the snow map.",
+        "site": "main"
       }
     },
     {
@@ -162,7 +166,8 @@
         "frequency": "weekly",
         "mower": "",
         "needs_tracing": true,
-        "notes": "Energy & Environmental Research Center. Separate owner on the snow map."
+        "notes": "Energy & Environmental Research Center. Separate owner on the snow map.",
+        "site": "main"
       }
     },
     {
@@ -203,7 +208,8 @@
         "frequency": "biweekly",
         "mower": "",
         "needs_tracing": true,
-        "notes": "UND Foundation land. Confirm which parcels grounds actually mows."
+        "notes": "UND Foundation land. Confirm which parcels grounds actually mows.",
+        "site": "main"
       }
     },
     {
@@ -244,7 +250,8 @@
         "frequency": "biweekly",
         "mower": "",
         "needs_tracing": true,
-        "notes": "Coulee banks and bike path edges. Slope work, check equipment."
+        "notes": "Coulee banks and bike path edges. Slope work, check equipment.",
+        "site": "main"
       }
     },
     {
@@ -285,7 +292,8 @@
         "frequency": "course schedule",
         "mower": "",
         "needs_tracing": true,
-        "notes": "Course maintains its own greens and fairways. Record what grounds is responsible for."
+        "notes": "Course maintains its own greens and fairways. Record what grounds is responsible for.",
+        "site": "main"
       }
     },
     {
@@ -326,7 +334,8 @@
         "frequency": "weekly",
         "mower": "",
         "needs_tracing": true,
-        "notes": "Residence hall grounds south of University Ave."
+        "notes": "Residence hall grounds south of University Ave.",
+        "site": "main"
       }
     },
     {
@@ -367,7 +376,8 @@
         "frequency": "weekly",
         "mower": "",
         "needs_tracing": true,
-        "notes": "Apartment complexes. Housing is a separate owner on the snow map."
+        "notes": "Apartment complexes. Housing is a separate owner on the snow map.",
+        "site": "main"
       }
     },
     {
@@ -408,7 +418,8 @@
         "frequency": "weekly",
         "mower": "",
         "needs_tracing": true,
-        "notes": "High-visibility. Trim same day as mow."
+        "notes": "High-visibility. Trim same day as mow.",
+        "site": "main"
       }
     },
     {
@@ -449,7 +460,137 @@
         "frequency": "weekly",
         "mower": "",
         "needs_tracing": true,
-        "notes": "Wellness is a separate owner on the snow map."
+        "notes": "Wellness is a separate owner on the snow map.",
+        "site": "main"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -97.084,
+              47.924
+            ],
+            [
+              -97.07900000000001,
+              47.924
+            ],
+            [
+              -97.07900000000001,
+              47.9254
+            ],
+            [
+              -97.084,
+              47.9254
+            ],
+            [
+              -97.084,
+              47.924
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "MOW-12",
+        "name": "Greek row",
+        "category": "UND Green Space",
+        "acres": "",
+        "crew": "",
+        "frequency": "weekly",
+        "mower": "",
+        "site": "greek",
+        "ownership": "future",
+        "needs_tracing": true,
+        "notes": "Fraternity and sorority houses. Not UND owned today; included in case that changes. Record which lawns grounds actually touches."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -97.078,
+              47.923700000000004
+            ],
+            [
+              -97.07560000000001,
+              47.923700000000004
+            ],
+            [
+              -97.07560000000001,
+              47.9249
+            ],
+            [
+              -97.078,
+              47.9249
+            ],
+            [
+              -97.078,
+              47.923700000000004
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "MOW-13",
+        "name": "Memorial Village",
+        "category": "UND Green Space",
+        "acres": "",
+        "crew": "",
+        "frequency": "weekly",
+        "mower": "",
+        "site": "memorial",
+        "ownership": "future",
+        "needs_tracing": true,
+        "notes": "The Hyslop side of Memorial Village. Included in case UND ownership changes."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -97.0755,
+              47.923700000000004
+            ],
+            [
+              -97.0735,
+              47.923700000000004
+            ],
+            [
+              -97.0735,
+              47.9249
+            ],
+            [
+              -97.0755,
+              47.9249
+            ],
+            [
+              -97.0755,
+              47.923700000000004
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "MOW-14",
+        "name": "Fieldhouse",
+        "category": "UND Green Space",
+        "acres": "",
+        "crew": "",
+        "frequency": "weekly",
+        "mower": "",
+        "site": "memorial",
+        "ownership": "future",
+        "needs_tracing": true,
+        "notes": "Memorial Village Fieldhouse side. Included in case UND ownership changes."
       }
     }
   ]

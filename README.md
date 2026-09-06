@@ -12,7 +12,8 @@ Interactive campus map for UND Facilities Management, Grounds. Mowing areas, sno
 - Find: search by name, ID, crew, category, anything in the data
 - Work tracking: set a status and a note on any area or route, mark done, export the log, or copy a summary to paste into Claude or ChatGPT
 - Where am I: GPS dot on the map for the crew
-- Edit mode: trace real shapes on the imagery, edit details, export the layer back to `data/`
+- Edit mode: trace real shapes on the imagery, edit details inline with dropdowns, undo, duplicate, and save straight into the repo folder (Chrome or Edge) with Cmd/Ctrl+S
+- Site filter: main campus, Greek row, Memorial Village and Fieldhouse, with airport and other offsite sites reserved for later
 - Print: prints the map view
 
 ## Status

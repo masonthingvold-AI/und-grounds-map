@@ -37,7 +37,8 @@ docs/data-schema.md     field definitions for every layer
 
 ## How edits usually happen
 
-- In the map: open `index.html`, click Edit mode, pick the layer, draw or reshape, click a shape to edit its details, then Export this layer as GeoJSON. Replace the matching file in `data/` with the download. Run `tools/build.py`. Commit.
+- In the map (fastest): open `index.html` in Chrome or Edge, click Edit mode, click Connect repo folder and pick the repo (or its `data/` folder). Draw, reshape, click a shape and change its details in the Selected panel (they apply as you type). Cmd/Ctrl+S writes every `.geojson` and `bundle.js` straight into `data/`. Then commit. Safari cannot write files, so there Download all data replaces the files by hand and you run `tools/build.py`.
+- Site filter: every feature has a `site` (main, greek, memorial, airport, offsite). The map scope is what UND owns; Greek row and Memorial Village / Fieldhouse are included with `ownership: future` in case that changes. Airport and other offsite sites exist in config but have no data yet.
 - Work in the field: crew sets a status and note on any feature. That is saved on their phone only. Export work log puts it in a JSON file to commit under `work/`. Copy summary puts a plain text version on the clipboard to paste into Claude or ChatGPT.
 - From an AI: read the geojson, change properties or add features following the schema, write the file back, ask for a rebuild if you cannot run it.
 

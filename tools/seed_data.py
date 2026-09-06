@@ -22,6 +22,7 @@ def box(lat, lon, dlat, dlon):
         [lon - dlon, lat - dlat]]]}
 
 def feat(geom, **props):
+    props.setdefault("site", "main")
     return {"type": "Feature", "geometry": geom, "properties": props}
 
 # ---------------------------------------------------------------- mowing areas
@@ -29,7 +30,7 @@ def feat(geom, **props):
 mowing = [
     feat(box(47.9238, -97.0745, 0.0028, 0.0075), id="MOW-01", name="UND Green Space (core campus)",
          category="UND Green Space", acres=107.90, crew="", frequency="weekly", mower="Toro 4100 D 10'",
-         needs_tracing=True, notes="Core academic campus between University Ave and 6th Ave N. Split into sub-areas when traced."),
+         ownership="UND", needs_tracing=True, notes="Core academic campus between University Ave and 6th Ave N. Split into sub-areas when traced."),
     feat(box(47.9250, -97.0885, 0.0012, 0.0025), id="MOW-02", name="Sports Fields Green Space",
          category="Sports Fields", acres=8.40, crew="", frequency="2x weekly", mower="Toro Sidewinder / 3280 D",
          needs_tracing=True, notes="Practice and game fields. Height and stripe pattern differ from general turf."),
@@ -60,6 +61,15 @@ mowing = [
     feat(box(47.9200, -97.0770, 0.0008, 0.0015), id="MOW-11", name="Wellness Center grounds",
          category="Wellness", acres=2.66, crew="", frequency="weekly", mower="",
          needs_tracing=True, notes="Wellness is a separate owner on the snow map."),
+    feat(box(47.9247, -97.0815, 0.0007, 0.0025), id="MOW-12", name="Greek row",
+         category="UND Green Space", acres="", crew="", frequency="weekly", mower="", site="greek", ownership="future",
+         needs_tracing=True, notes="Fraternity and sorority houses. Not UND owned today; included in case that changes. Record which lawns grounds actually touches."),
+    feat(box(47.9243, -97.0768, 0.0006, 0.0012), id="MOW-13", name="Memorial Village",
+         category="UND Green Space", acres="", crew="", frequency="weekly", mower="", site="memorial", ownership="future",
+         needs_tracing=True, notes="The Hyslop side of Memorial Village. Included in case UND ownership changes."),
+    feat(box(47.9243, -97.0745, 0.0006, 0.0010), id="MOW-14", name="Fieldhouse",
+         category="UND Green Space", acres="", crew="", frequency="weekly", mower="", site="memorial", ownership="future",
+         needs_tracing=True, notes="Memorial Village Fieldhouse side. Included in case UND ownership changes."),
 ]
 
 # ------------------------------------------------------------------ snow routes

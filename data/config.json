@@ -1,12 +1,27 @@
 {
   "title": "UND Grounds Map",
-  "subtitle": "Landscaping and snow removal",
-  "center": [47.9235, -97.0760],
+  "subtitle": "Landscaping and snow removal, UND owned campus",
+  "center": [
+    47.9235,
+    -97.076
+  ],
   "zoom": 15,
   "layers": [
-    { "file": "mowing_areas", "label": "Mowing areas", "defaultOn": true },
-    { "file": "snow_routes", "label": "Snow routes", "defaultOn": false },
-    { "file": "assets", "label": "Equipment & assets", "defaultOn": true }
+    {
+      "file": "mowing_areas",
+      "label": "Mowing areas",
+      "defaultOn": true
+    },
+    {
+      "file": "snow_routes",
+      "label": "Snow routes",
+      "defaultOn": false
+    },
+    {
+      "file": "assets",
+      "label": "Equipment & assets",
+      "defaultOn": true
+    }
   ],
   "mowing_category_colors": {
     "UND Green Space": "#009A44",
@@ -27,5 +42,110 @@
     "3": "#2E86AB",
     "4": "#AEAEAE"
   },
-  "work_status_options": ["not started", "in progress", "done", "issue"]
+  "work_status_options": [
+    "not started",
+    "in progress",
+    "done",
+    "issue"
+  ],
+  "sites": [
+    {
+      "id": "main",
+      "label": "Main campus (UND owned)"
+    },
+    {
+      "id": "greek",
+      "label": "Greek row"
+    },
+    {
+      "id": "memorial",
+      "label": "Memorial Village and Fieldhouse"
+    },
+    {
+      "id": "airport",
+      "label": "Airport / Aerospace (later)"
+    },
+    {
+      "id": "offsite",
+      "label": "Other offsite (later)"
+    }
+  ],
+  "enums": {
+    "mowing_areas.category": [
+      "UND Green Space",
+      "Sports Fields",
+      "REA",
+      "EERC",
+      "Foundation",
+      "Greenway",
+      "Golf Course",
+      "Primary Housing",
+      "Housing",
+      "Alumni",
+      "Wellness"
+    ],
+    "mowing_areas.frequency": [
+      "weekly",
+      "2x weekly",
+      "biweekly",
+      "monthly",
+      "course schedule",
+      "as needed"
+    ],
+    "mowing_areas.ownership": [
+      "UND",
+      "future",
+      "not UND"
+    ],
+    "snow_routes.kind": [
+      "walk_route",
+      "lot_route",
+      "road_route",
+      "tier_zone"
+    ],
+    "snow_routes.tier": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "snow_routes.owner": [
+      "Athletics",
+      "EERC",
+      "Facilities",
+      "Housing",
+      "Parking",
+      "REA",
+      "Wellness"
+    ],
+    "assets.type": [
+      "facility",
+      "material_storage",
+      "equipment",
+      "hydrant",
+      "salt_box",
+      "irrigation",
+      "shutoff_valve",
+      "water_main",
+      "hazard",
+      "tree",
+      "other"
+    ],
+    "assets.status": [
+      "ok",
+      "in_service",
+      "down",
+      "needs_repair",
+      "unknown"
+    ],
+    "assets.equipment_class": [
+      "mower",
+      "utility",
+      "loader",
+      "blower",
+      "plow",
+      "truck",
+      "other"
+    ]
+  }
 }

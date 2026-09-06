@@ -16,7 +16,8 @@
         "type": "facility",
         "status": "ok",
         "needs_tracing": true,
-        "notes": "Equipment home base. Transportation, Grounds, Bus Storage, Recycling cluster."
+        "notes": "Equipment home base. Transportation, Grounds, Bus Storage, Recycling cluster.",
+        "site": "main"
       }
     },
     {
@@ -34,7 +35,8 @@
         "type": "material_storage",
         "status": "unknown",
         "needs_tracing": true,
-        "notes": "Confirm location and capacity. WO code 010 materials."
+        "notes": "Confirm location and capacity. WO code 010 materials.",
+        "site": "main"
       }
     },
     {
@@ -54,7 +56,8 @@
         "status": "in_service",
         "home": "Grounds shop",
         "needs_tracing": false,
-        "notes": "From Major Equipment list."
+        "notes": "From Major Equipment list.",
+        "site": "main"
       }
     },
     {
@@ -74,7 +77,8 @@
         "status": "in_service",
         "home": "Grounds shop",
         "needs_tracing": false,
-        "notes": ""
+        "notes": "",
+        "site": "main"
       }
     },
     {
@@ -94,7 +98,8 @@
         "status": "in_service",
         "home": "Grounds shop",
         "needs_tracing": false,
-        "notes": "Year not recorded."
+        "notes": "Year not recorded.",
+        "site": "main"
       }
     },
     {
@@ -114,7 +119,8 @@
         "status": "in_service",
         "home": "Grounds shop",
         "needs_tracing": false,
-        "notes": "Year not recorded."
+        "notes": "Year not recorded.",
+        "site": "main"
       }
     },
     {
@@ -134,7 +140,8 @@
         "status": "in_service",
         "home": "Grounds shop",
         "needs_tracing": false,
-        "notes": ""
+        "notes": "",
+        "site": "main"
       }
     },
     {
@@ -154,7 +161,8 @@
         "status": "in_service",
         "home": "Grounds shop",
         "needs_tracing": false,
-        "notes": ""
+        "notes": "",
+        "site": "main"
       }
     },
     {
@@ -174,7 +182,8 @@
         "status": "in_service",
         "home": "Grounds shop",
         "needs_tracing": false,
-        "notes": "Sports fields."
+        "notes": "Sports fields.",
+        "site": "main"
       }
     },
     {
@@ -194,7 +203,8 @@
         "status": "in_service",
         "home": "Grounds shop",
         "needs_tracing": false,
-        "notes": ""
+        "notes": "",
+        "site": "main"
       }
     },
     {
@@ -214,7 +224,8 @@
         "status": "in_service",
         "home": "Grounds shop",
         "needs_tracing": false,
-        "notes": ""
+        "notes": "",
+        "site": "main"
       }
     },
     {
@@ -234,7 +245,8 @@
         "status": "in_service",
         "home": "Grounds shop",
         "needs_tracing": false,
-        "notes": ""
+        "notes": "",
+        "site": "main"
       }
     },
     {
@@ -254,7 +266,8 @@
         "status": "in_service",
         "home": "Grounds shop",
         "needs_tracing": false,
-        "notes": ""
+        "notes": "",
+        "site": "main"
       }
     },
     {
@@ -274,7 +287,8 @@
         "status": "in_service",
         "home": "Grounds shop",
         "needs_tracing": false,
-        "notes": ""
+        "notes": "",
+        "site": "main"
       }
     },
     {
@@ -294,7 +308,8 @@
         "status": "in_service",
         "home": "Grounds shop",
         "needs_tracing": false,
-        "notes": ""
+        "notes": "",
+        "site": "main"
       }
     },
     {
@@ -314,7 +329,8 @@
         "status": "in_service",
         "home": "Grounds shop",
         "needs_tracing": false,
-        "notes": "Model not recorded. Snow-capable. Record attachments."
+        "notes": "Model not recorded. Snow-capable. Record attachments.",
+        "site": "main"
       }
     },
     {
@@ -334,7 +350,8 @@
         "status": "in_service",
         "home": "Grounds shop",
         "needs_tracing": false,
-        "notes": "Model not recorded."
+        "notes": "Model not recorded.",
+        "site": "main"
       }
     },
     {
@@ -354,7 +371,8 @@
         "status": "in_service",
         "home": "Grounds shop",
         "needs_tracing": false,
-        "notes": "Model not recorded."
+        "notes": "Model not recorded.",
+        "site": "main"
       }
     }
   ]

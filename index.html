@@ -99,6 +99,7 @@
 
     <section data-tab="layers" class="show">
       <h2>Layers</h2>
+      <div class="field"><label>Site</label><select id="siteFilter"></select></div>
       <div id="layerToggles"></div>
       <h2 style="margin-top:12px">Legend</h2>
       <div id="legend"></div>
@@ -133,11 +134,16 @@
 
     <section data-tab="layers" id="editPanel" hidden>
       <h2>Edit mode</h2>
-      <p class="muted">Draw with the toolbar on the map. Click a shape to edit its details. Export a layer, then replace the matching file in <code>data/</code> and rebuild.</p>
+      <p class="muted">Draw with the toolbar on the map. Click a shape and change its details right in the Selected panel; changes apply as you type. Delete key removes the selected shape. Cmd/Ctrl+S saves.</p>
       <div class="field"><label>Drawing into layer</label><select id="editLayer"></select></div>
+      <div class="field"><label>New shapes belong to site</label><select id="editSite"></select></div>
       <div class="btns">
-        <button class="btn primary" id="btnExportLayer">Export this layer as GeoJSON</button>
+        <button class="btn primary" id="btnSaveRepo" title="Writes data/*.geojson and data/bundle.js straight into the repo folder">Save to repo</button>
+        <button class="btn" id="btnConnectRepo">Connect repo folder</button>
+        <button class="btn" id="btnDownloadAll">Download all data</button>
+        <button class="btn" id="btnUndo">Undo</button>
       </div>
+      <div class="muted" id="editStatus" style="margin-top:8px">No unsaved changes.</div>
     </section>
 
     <section>
@@ -221,9 +227,13 @@
   const index = [];       // searchable list of {layerKey, feature, leafletLayer}
   let selected = null;
 
+  const SITES = config.sites || [{id:"main",label:"Main campus"}];
+  const ENUMS = config.enums || {};
+  let siteFilter = ""; try{ siteFilter = localStorage.getItem("und-grounds-site") || ""; }catch(e){}
   function buildLayer(key){
-    const fc = layersData[key];
-    const g = L.featureGroup();
+    const fc = {type:"FeatureCollection", features: layersData[key].features.filter(f => !siteFilter || (f.properties.site||"main")===siteFilter)};
+    const g = groups[key] || L.featureGroup();
+    g.clearLayers();
     // spread equipment points that share a home coordinate so they are clickable
     const seen = {};
     L.geoJSON(fc, {
@@ -248,6 +258,15 @@
     groups[key] = g;
     return g;
   }
+  function rebuildAll(){
+    index.length = 0; selected = null;
+    for(const l of config.layers) buildLayer(l.file);
+    if(typeof renderDetail==="function"){ renderDetail(); renderResults(); }
+    if(editMode && drawControl) attachDraw();
+  }
+  const siteSel = document.getElementById("siteFilter");
+  siteSel.innerHTML = `<option value="">All sites</option>` + SITES.map(x=>`<option value="${x.id}" ${x.id===siteFilter?"selected":""}>${x.label}</option>`).join("");
+  siteSel.addEventListener("change", () => { siteFilter = siteSel.value; try{ localStorage.setItem("und-grounds-site", siteFilter); }catch(e){} rebuildAll(); const all = L.featureGroup(Object.values(groups).filter(g=>map.hasLayer(g))); if(all.getLayers().length && all.getBounds().isValid()) map.fitBounds(all.getBounds().pad(0.08)); });
   const toggles = document.getElementById("layerToggles");
   for(const l of config.layers){
     const g = buildLayer(l.file);
@@ -299,8 +318,9 @@
     detail.innerHTML = `
       <h3 style="font-size:16px">${p.name} ${p.needs_tracing?'<span class="flag">needs tracing</span>':""}</h3>
       <div class="muted">${id} · ${selected.layerKey.replace("_"," ")}</div>
-      <dl>${rows}${acresNote}</dl>
-      ${p.notes?`<p style="margin:6px 0">${p.notes}</p>`:""}
+      ${editMode?"":`<dl>${rows}${acresNote}</dl>`}
+      ${(p.notes && !editMode)?`<p style="margin:6px 0">${p.notes}</p>`:""}
+      ${editMode?`<div class="btns"><button class="btn" id="wZoom">Zoom to</button><button class="btn" id="wDup">Duplicate</button><button class="btn" id="wDelete" style="color:var(--danger)">Delete shape</button></div>`:`
       <div class="field"><label>Status</label><select id="wStatus">${STATUSES.map(s=>`<option ${((w.status||STATUSES[0])===s)?"selected":""}>${s}</option>`).join("")}</select></div>
       <div class="field"><label>Field note</label><textarea id="wNote" placeholder="What happened, what is wrong, what is needed">${w.note||""}</textarea></div>
       <div class="field"><label>Your name or crew</label><input type="text" id="wWho" value="${w.who||lastWho()}"></div>
@@ -308,54 +328,128 @@
         <button class="btn primary" id="wSave">Save</button>
         <button class="btn" id="wDone">Mark done</button>
         <button class="btn" id="wZoom">Zoom to</button>
-        ${editMode?`<button class="btn" id="wProps">Edit details</button><button class="btn" id="wDelete" style="color:var(--danger)">Delete shape</button>`:""}
-      </div>
+      </div>`}
       ${w.at?`<div class="muted" style="margin-top:6px">Last update ${new Date(w.at).toLocaleString()} by ${w.who||"unknown"}</div>`:""}
       ${editMode?`<div id="propsEditor"></div>`:""}`;
+    if(editMode) renderPropsEditor();
     const save = (status) => {
       work[id] = {status: status || detail.querySelector("#wStatus").value, note: detail.querySelector("#wNote").value.trim(), who: detail.querySelector("#wWho").value.trim(), at: new Date().toISOString(), name:p.name, layer:selected.layerKey};
       try{ localStorage.setItem("und-grounds-who", work[id].who); }catch(e){}
       saveWork(); selected.layer.setStyle && selected.layer.setStyle(styleFor(selected.layerKey, selected.feature)); renderDetail(); renderResults(); toast("Saved");
     };
-    detail.querySelector("#wSave").onclick = () => save();
-    detail.querySelector("#wDone").onclick = () => save("done");
+    if(!editMode){ detail.querySelector("#wSave").onclick = () => save(); detail.querySelector("#wDone").onclick = () => save("done"); }
     detail.querySelector("#wZoom").onclick = () => { const l = selected.layer; l.getBounds ? map.fitBounds(l.getBounds().pad(0.3)) : map.setView(l.getLatLng(), 18); };
     if(editMode){
-      detail.querySelector("#wProps").onclick = renderPropsEditor;
-      detail.querySelector("#wDelete").onclick = () => {
-        if(!confirm(`Delete ${p.name} from ${selected.layerKey}? This only changes the layer until you export it.`)) return;
-        groups[selected.layerKey].removeLayer(selected.layer);
-        const fc = layersData[selected.layerKey]; fc.features = fc.features.filter(x => x!==selected.feature);
-        const i = index.findIndex(x=>x.feature===selected.feature); if(i>=0) index.splice(i,1);
-        selected = null; renderDetail(); renderResults(); toast("Deleted. Export the layer to keep this.");
-      };
+      detail.querySelector("#wDup").onclick = duplicateSelected;
+      detail.querySelector("#wDelete").onclick = deleteSelected;
     }
   }
   function lastWho(){ try{ return localStorage.getItem("und-grounds-who")||""; }catch(e){ return ""; } }
+  function fieldEditor(k, v, layerKey){
+    const opts = (k==="site") ? SITES.map(x=>[x.id,x.label]) : (ENUMS[layerKey+"."+k] || ENUMS[k]);
+    if(k==="needs_tracing") return `<select data-k="${k}"><option value="true" ${v?"selected":""}>placeholder, needs tracing</option><option value="false" ${!v?"selected":""}>traced on imagery</option></select>`;
+    if(opts) return `<select data-k="${k}">${opts.map(o=>{const [val,lab]=Array.isArray(o)?o:[o,o]; return `<option value="${val}" ${String(v)===String(val)?"selected":""}>${lab}</option>`;}).join("")}</select>`;
+    if(k==="notes") return `<textarea data-k="${k}">${String(v??"")}</textarea>`;
+    return `<input type="text" data-k="${k}" value="${String(v??"").replace(/"/g,"&quot;")}">`;
+  }
   function renderPropsEditor(){
-    const p = selected.feature.properties;
+    const p = selected.feature.properties, key = selected.layerKey;
     const box = detail.querySelector("#propsEditor");
-    const keys = Object.keys(p);
-    box.innerHTML = `<h3 style="font-size:13px;margin-top:10px;color:var(--deep)">Feature details</h3>` +
-      keys.map(k => `<div class="field"><label>${k}</label>${k==="needs_tracing"
-        ? `<select data-k="${k}"><option value="true" ${p[k]?"selected":""}>true (placeholder)</option><option value="false" ${!p[k]?"selected":""}>false (traced)</option></select>`
-        : `<input type="text" data-k="${k}" value="${String(p[k]??"").replace(/"/g,"&quot;")}">`}</div>`).join("") +
-      `<div class="field"><label>Add a field (name=value)</label><input type="text" id="newField" placeholder="e.g. width_ft=6"></div>
-       <div class="btns"><button class="btn primary" id="propsSave">Apply</button></div>`;
-    box.querySelector("#propsSave").onclick = () => {
-      box.querySelectorAll("[data-k]").forEach(el => {
+    const keys = Object.keys(p).filter(k=>k!=="id");
+    if(!("site" in p)) keys.push("site");
+    let acres = "";
+    if(selected.feature.geometry.type==="Polygon") acres = `<div class="muted" style="margin:4px 0">Drawn area ${geodesicAcres(selected.feature.geometry.coordinates[0]).toFixed(2)} ac</div>`;
+    box.innerHTML = `<h3 style="font-size:13px;margin-top:10px;color:var(--deep)">Details (auto-saves)</h3>${acres}` +
+      keys.map(k => `<div class="field"><label>${k.replace(/_/g," ")}</label>${fieldEditor(k, p[k], key)}</div>`).join("") +
+      `<div class="field"><label>Add a field (name=value, Enter)</label><input type="text" id="newField" placeholder="e.g. width_ft=6"></div>`;
+    box.querySelectorAll("[data-k]").forEach(el => {
+      const apply = () => {
         const k = el.dataset.k; let v = el.value;
         if(k==="needs_tracing") v = v==="true";
+        else if(k==="tier") v = Number(v);
         else if(v!=="" && !isNaN(v) && typeof p[k]==="number") v = Number(v);
-        p[k] = v;
-      });
-      const nf = box.querySelector("#newField").value.trim();
-      if(nf.includes("=")){ const [k,...r] = nf.split("="); p[k.trim()] = r.join("=").trim(); }
-      if(selected.layer.setStyle) selected.layer.setStyle(styleFor(selected.layerKey, selected.feature));
-      if(selected.layer.getTooltip()) selected.layer.setTooltipContent(p.name);
-      renderDetail(); renderResults(); toast("Applied. Export the layer to keep this.");
-    };
+        if(p[k]===v) return;
+        snapshot(); p[k] = v; markDirty();
+        if(selected.layer.setStyle) selected.layer.setStyle(Object.assign({}, styleFor(key, selected.feature), {weight:(selected.feature.geometry.type==="Point"?3:4), color:"#111"}));
+        if(k==="name"){ if(selected.layer.getTooltip()) selected.layer.setTooltipContent(v); detail.querySelector("h3").firstChild.textContent = v+" "; }
+        renderResults();
+      };
+      el.addEventListener(el.tagName==="SELECT" ? "change" : "input", apply);
+    });
+    box.querySelector("#newField").addEventListener("keydown", e => {
+      if(e.key!=="Enter") return; const nf = e.target.value.trim();
+      if(nf.includes("=")){ const [k,...r] = nf.split("="); snapshot(); p[k.trim()] = r.join("=").trim(); markDirty(); renderDetail(); }
+    });
   }
+  function deleteSelected(){
+    if(!selected) return; const p = selected.feature.properties;
+    if(!confirm(`Delete ${p.name}?`)) return;
+    snapshot();
+    groups[selected.layerKey].removeLayer(selected.layer);
+    const fc = layersData[selected.layerKey]; fc.features = fc.features.filter(x => x!==selected.feature);
+    const i = index.findIndex(x=>x.feature===selected.feature); if(i>=0) index.splice(i,1);
+    selected = null; markDirty(); renderDetail(); renderResults(); toast("Deleted. Undo is available.");
+  }
+  function duplicateSelected(){
+    if(!selected) return; snapshot();
+    const key = selected.layerKey, src = selected.feature;
+    const gj = JSON.parse(JSON.stringify(src)); gj.properties.id = nextId(key); gj.properties.name = src.properties.name + " copy";
+    layersData[key].features.push(gj); markDirty(); rebuildAll();
+    const it = index.find(x=>x.feature.properties.id===gj.properties.id); if(it) select(key, it.feature, it.layer);
+  }
+  function nextId(key){
+    const prefix = {mowing_areas:"MOW", snow_routes:"SNOW", assets:"AST"}[key] || key.toUpperCase().slice(0,4);
+    let n = layersData[key].features.length + 1, id;
+    do { id = `${prefix}-${String(n++).padStart(2,"0")}`; } while(layersData[key].features.some(f=>f.properties.id===id));
+    return id;
+  }
+  // ---- undo and dirty tracking
+  const undoStack = []; let dirty = 0;
+  function snapshot(){ undoStack.push(JSON.stringify(layersData)); if(undoStack.length>30) undoStack.shift(); }
+  function markDirty(){ dirty++; updateEditStatus(); }
+  function updateEditStatus(){ const el = document.getElementById("editStatus"); if(el) el.textContent = dirty ? `${dirty} unsaved change${dirty>1?"s":""}. ${repoDir?"Save to repo writes them into data/.":"Connect the repo folder to save directly, or download."}` : (repoDir ? "Saved. Repo folder connected." : "No unsaved changes."); }
+  document.getElementById("btnUndo").onclick = () => {
+    if(!undoStack.length) return toast("Nothing to undo");
+    const snap = JSON.parse(undoStack.pop());
+    for(const k of Object.keys(snap)) layersData[k] = snap[k];
+    dirty = Math.max(0, dirty-1); updateEditStatus(); rebuildAll(); toast("Undone");
+  };
+  // ---- save straight into the repo folder (Chrome and Edge; Safari falls back to download)
+  let repoDir = null;
+  function bundleJS(){
+    return "// GENERATED by tools/build.py or the map's Save to repo. Do not edit.\nwindow.UND_MAP_BUNDLE = " + JSON.stringify({layers: layersData, config}) + ";\n";
+  }
+  async function writeFile(dir, name, text){ const h = await dir.getFileHandle(name, {create:true}); const w = await h.createWritable(); await w.write(text); await w.close(); }
+  document.getElementById("btnConnectRepo").onclick = async () => {
+    if(!window.showDirectoryPicker) return toast("This browser cannot write files directly. Use Chrome or Edge, or Download all data.");
+    try{
+      const dir = await window.showDirectoryPicker({mode:"readwrite"});
+      // accept either the repo root or the data folder
+      try{ repoDir = await dir.getDirectoryHandle("data"); }catch(e){ repoDir = dir; }
+      updateEditStatus(); toast("Repo folder connected. Cmd/Ctrl+S saves.");
+    }catch(e){ /* cancelled */ }
+  };
+  async function saveToRepo(){
+    if(!repoDir){ if(window.showDirectoryPicker){ await document.getElementById("btnConnectRepo").onclick(); if(!repoDir) return; } else { return downloadAll(); } }
+    try{
+      for(const l of config.layers) await writeFile(repoDir, `${l.file}.geojson`, JSON.stringify({type:"FeatureCollection", features: layersData[l.file].features}, null, 2));
+      await writeFile(repoDir, "bundle.js", bundleJS());
+      dirty = 0; updateEditStatus(); toast("Saved to data/. Commit when ready.");
+    }catch(e){ toast("Save failed: " + e.message); }
+  }
+  document.getElementById("btnSaveRepo").onclick = saveToRepo;
+  function downloadAll(){
+    for(const l of config.layers) download(`${l.file}.geojson`, JSON.stringify({type:"FeatureCollection", features: layersData[l.file].features}, null, 2), "application/geo+json");
+    toast("Downloaded every layer. Replace the files in data/ and run tools/build.py.");
+  }
+  document.getElementById("btnDownloadAll").onclick = downloadAll;
+  document.addEventListener("keydown", e => {
+    if(!editMode) return;
+    const typing = ["INPUT","TEXTAREA","SELECT"].includes(document.activeElement.tagName);
+    if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==="s"){ e.preventDefault(); saveToRepo(); }
+    else if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==="z" && !typing){ e.preventDefault(); document.getElementById("btnUndo").onclick(); }
+    else if((e.key==="Delete"||e.key==="Backspace") && !typing && selected){ e.preventDefault(); deleteSelected(); }
+  });
 
   // ------------------------------------------------------------- search
   const results = document.getElementById("results"), search = document.getElementById("search"), filterStatus = document.getElementById("filterStatus");
@@ -440,6 +534,8 @@
   let editMode = false, drawControl = null;
   const editLayerSel = document.getElementById("editLayer");
   config.layers.forEach(l => { const o = document.createElement("option"); o.value=l.file; o.textContent=l.label; editLayerSel.appendChild(o); });
+  const editSiteSel = document.getElementById("editSite");
+  SITES.forEach(x => { const o = document.createElement("option"); o.value=x.id; o.textContent=x.label; editSiteSel.appendChild(o); });
   const editTarget = () => groups[editLayerSel.value];
   document.getElementById("btnEdit").onclick = () => {
     editMode = !editMode;
@@ -447,12 +543,13 @@
     document.getElementById("editPanel").hidden = !editMode;
     if(editMode){
       attachDraw();
-      toast("Edit mode. Trace on the satellite view, then export the layer.");
+      toast("Edit mode. Trace on the satellite view. Cmd/Ctrl+S saves to the repo.");
     } else {
       if(drawControl){ map.removeControl(drawControl); drawControl = null; }
     }
     renderDetail();
   };
+  window.addEventListener("beforeunload", e => { if(dirty){ e.preventDefault(); e.returnValue = ""; } });
   editLayerSel.addEventListener("change", () => { if(editMode) attachDraw(); });
   function attachDraw(){
     if(drawControl) map.removeControl(drawControl);
@@ -466,11 +563,11 @@
   }
   map.on(L.Draw.Event.CREATED, e => {
     const key = editLayerSel.value, lyr = e.layer, gj = lyr.toGeoJSON();
-    const n = layersData[key].features.length + 1;
-    const prefix = {mowing_areas:"MOW", snow_routes:"SNOW", assets:"AST"}[key] || key.toUpperCase().slice(0,4);
-    let id = `${prefix}-${String(n).padStart(2,"0")}`; while(index.some(it=>it.feature.properties.id===id)) id = id+"b";
+    snapshot();
+    const id = nextId(key);
     const name = prompt("Name for this new shape:", `New ${key.replace("_"," ")}`) || id;
-    gj.properties = Object.assign(defaultProps(key), {id, name, needs_tracing:false});
+    gj.properties = Object.assign(defaultProps(key), {id, name, site: document.getElementById("editSite").value || "main", needs_tracing:false});
+    markDirty();
     layersData[key].features.push(gj);
     lyr.feature = gj; lyr._layerKey = key;
     lyr.on("click", ev => { L.DomEvent.stop(ev); select(key, gj, lyr); });
@@ -481,8 +578,9 @@
     select(key, gj, lyr); renderResults();
   });
   map.on(L.Draw.Event.EDITED, e => {
+    snapshot();
     e.layers.eachLayer(lyr => { if(lyr.feature){ lyr.feature.geometry = lyr.toGeoJSON().geometry; } });
-    toast("Shape updated. Export the layer to keep it.");
+    markDirty(); toast("Shape updated.");
     renderDetail();
   });
   function defaultProps(key){
@@ -490,12 +588,6 @@
     if(key==="snow_routes") return {kind:"walk_route", tier:2, owner:"Facilities", machine:"", operator:"", est_hours:"", window_hours:"", notes:""};
     return {type:"other", status:"ok", notes:""};
   }
-  document.getElementById("btnExportLayer").onclick = () => {
-    const key = editLayerSel.value;
-    const fc = {type:"FeatureCollection", features: layersData[key].features};
-    download(`${key}.geojson`, JSON.stringify(fc, null, 2), "application/geo+json");
-    toast(`Downloaded ${key}.geojson. Replace data/${key}.geojson in the repo and run tools/build.py.`);
-  };
 
   // ------------------------------------------------------------- helpers
   function geodesicAcres(ring){

@@ -35,7 +35,8 @@
         "est_hours": 4.7,
         "window_hours": 4.5,
         "needs_tracing": true,
-        "notes": "Lands 0.2 hr over its window in v0.2. Candidate to absorb Gorecki frontage off SW-6."
+        "notes": "Lands 0.2 hr over its window in v0.2. Candidate to absorb Gorecki frontage off SW-6.",
+        "site": "main"
       }
     },
     {
@@ -68,7 +69,8 @@
         "est_hours": 0,
         "window_hours": 5.0,
         "needs_tracing": true,
-        "notes": ""
+        "notes": "",
+        "site": "main"
       }
     },
     {
@@ -101,7 +103,8 @@
         "est_hours": 0,
         "window_hours": 5.0,
         "needs_tracing": true,
-        "notes": ""
+        "notes": "",
+        "site": "main"
       }
     },
     {
@@ -134,7 +137,8 @@
         "est_hours": 2.2,
         "window_hours": 5.0,
         "needs_tracing": true,
-        "notes": "Runs half empty (2.2 hr). Rebalance candidate."
+        "notes": "Runs half empty (2.2 hr). Rebalance candidate.",
+        "site": "main"
       }
     },
     {
@@ -167,7 +171,8 @@
         "est_hours": 5.9,
         "window_hours": 5.5,
         "needs_tracing": true,
-        "notes": "Over window. Split the airport hangar line off into its own route."
+        "notes": "Over window. Split the airport hangar line off into its own route.",
+        "site": "main"
       }
     },
     {
@@ -200,7 +205,8 @@
         "est_hours": 2.0,
         "window_hours": 5.0,
         "needs_tracing": true,
-        "notes": "Runs half empty (2.0 hr). Move Gorecki and perimeter frontage to SW-1 tail."
+        "notes": "Runs half empty (2.0 hr). Move Gorecki and perimeter frontage to SW-1 tail.",
+        "site": "main"
       }
     },
     {
@@ -239,7 +245,8 @@
         "tier": 2,
         "owner": "Facilities",
         "needs_tracing": true,
-        "notes": "Campus Rd, Cornell, 2nd Ave N, Hamline, etc. Trigger 2 in. Open by 7:30 a.m."
+        "notes": "Campus Rd, Cornell, 2nd Ave N, Hamline, etc. Trigger 2 in. Open by 7:30 a.m.",
+        "site": "main"
       }
     },
     {
@@ -280,7 +287,8 @@
         "machine": "",
         "operator": "",
         "needs_tracing": true,
-        "notes": "Pusher box if available. Snow storage corners not yet designated."
+        "notes": "Pusher box if available. Snow storage corners not yet designated.",
+        "site": "main"
       }
     },
     {
@@ -321,7 +329,8 @@
         "machine": "",
         "operator": "",
         "needs_tracing": true,
-        "notes": "WO code 003."
+        "notes": "WO code 003.",
+        "site": "main"
       }
     }
   ]
