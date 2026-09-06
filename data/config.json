@@ -1,0 +1,31 @@
+{
+  "title": "UND Grounds Map",
+  "subtitle": "Landscaping and snow removal",
+  "center": [47.9235, -97.0760],
+  "zoom": 15,
+  "layers": [
+    { "file": "mowing_areas", "label": "Mowing areas", "defaultOn": true },
+    { "file": "snow_routes", "label": "Snow routes", "defaultOn": false },
+    { "file": "assets", "label": "Equipment & assets", "defaultOn": true }
+  ],
+  "mowing_category_colors": {
+    "UND Green Space": "#009A44",
+    "Sports Fields": "#00722F",
+    "REA": "#2E86AB",
+    "EERC": "#7B5EA7",
+    "Foundation": "#B8860B",
+    "Greenway": "#5DBB63",
+    "Golf Course": "#3F7D20",
+    "Primary Housing": "#D96C06",
+    "Housing": "#E8A33D",
+    "Alumni": "#AEAEAE",
+    "Wellness": "#1F9E89"
+  },
+  "snow_tier_colors": {
+    "1": "#D7263D",
+    "2": "#F46036",
+    "3": "#2E86AB",
+    "4": "#AEAEAE"
+  },
+  "work_status_options": ["not started", "in progress", "done", "issue"]
+}

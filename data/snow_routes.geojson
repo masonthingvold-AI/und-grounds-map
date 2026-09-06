@@ -1,0 +1,328 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -97.08,
+            47.9222
+          ],
+          [
+            -97.07,
+            47.9222
+          ],
+          [
+            -97.07,
+            47.9245
+          ],
+          [
+            -97.076,
+            47.9245
+          ]
+        ]
+      },
+      "properties": {
+        "id": "SW-1",
+        "name": "SW-1 Core Walks",
+        "kind": "walk_route",
+        "tier": 1,
+        "owner": "Facilities",
+        "machine": "",
+        "operator": "",
+        "est_hours": 4.7,
+        "window_hours": 4.5,
+        "needs_tracing": true,
+        "notes": "Lands 0.2 hr over its window in v0.2. Candidate to absorb Gorecki frontage off SW-6."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -97.069,
+            47.923
+          ],
+          [
+            -97.066,
+            47.923
+          ],
+          [
+            -97.066,
+            47.926
+          ]
+        ]
+      },
+      "properties": {
+        "id": "SW-2",
+        "name": "SW-2 East Walks & EERC",
+        "kind": "walk_route",
+        "tier": 2,
+        "owner": "Facilities",
+        "machine": "",
+        "operator": "",
+        "est_hours": 0,
+        "window_hours": 5.0,
+        "needs_tracing": true,
+        "notes": ""
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -97.073,
+            47.9215
+          ],
+          [
+            -97.073,
+            47.92
+          ],
+          [
+            -97.068,
+            47.92
+          ]
+        ]
+      },
+      "properties": {
+        "id": "SW-3",
+        "name": "SW-3 South Housing Walks",
+        "kind": "walk_route",
+        "tier": 2,
+        "owner": "Housing",
+        "machine": "",
+        "operator": "",
+        "est_hours": 0,
+        "window_hours": 5.0,
+        "needs_tracing": true,
+        "notes": ""
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -97.08,
+            47.924
+          ],
+          [
+            -97.08,
+            47.926
+          ],
+          [
+            -97.088,
+            47.926
+          ]
+        ]
+      },
+      "properties": {
+        "id": "SW-4",
+        "name": "SW-4 North Walks",
+        "kind": "walk_route",
+        "tier": 2,
+        "owner": "Facilities",
+        "machine": "",
+        "operator": "",
+        "est_hours": 2.2,
+        "window_hours": 5.0,
+        "needs_tracing": true,
+        "notes": "Runs half empty (2.2 hr). Rebalance candidate."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -97.09,
+            47.925
+          ],
+          [
+            -97.098,
+            47.925
+          ],
+          [
+            -97.11,
+            47.93
+          ]
+        ]
+      },
+      "properties": {
+        "id": "SW-5",
+        "name": "SW-5 West Campus & Aerospace",
+        "kind": "walk_route",
+        "tier": 2,
+        "owner": "Facilities",
+        "machine": "",
+        "operator": "",
+        "est_hours": 5.9,
+        "window_hours": 5.5,
+        "needs_tracing": true,
+        "notes": "Over window. Split the airport hangar line off into its own route."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -97.083,
+            47.9213
+          ],
+          [
+            -97.078,
+            47.9213
+          ],
+          [
+            -97.078,
+            47.9225
+          ]
+        ]
+      },
+      "properties": {
+        "id": "SW-6",
+        "name": "SW-6 Gorecki & Perimeter",
+        "kind": "walk_route",
+        "tier": 2,
+        "owner": "Facilities",
+        "machine": "",
+        "operator": "",
+        "est_hours": 2.0,
+        "window_hours": 5.0,
+        "needs_tracing": true,
+        "notes": "Runs half empty (2.0 hr). Move Gorecki and perimeter frontage to SW-1 tail."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -97.082,
+              47.921
+            ],
+            [
+              -97.06700000000001,
+              47.921
+            ],
+            [
+              -97.06700000000001,
+              47.9266
+            ],
+            [
+              -97.082,
+              47.9266
+            ],
+            [
+              -97.082,
+              47.921
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "T2-ROADS",
+        "name": "Tier 2 roads and drive lanes",
+        "kind": "tier_zone",
+        "tier": 2,
+        "owner": "Facilities",
+        "needs_tracing": true,
+        "notes": "Campus Rd, Cornell, 2nd Ave N, Hamline, etc. Trigger 2 in. Open by 7:30 a.m."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -97.094,
+              47.924
+            ],
+            [
+              -97.088,
+              47.924
+            ],
+            [
+              -97.088,
+              47.925999999999995
+            ],
+            [
+              -97.094,
+              47.925999999999995
+            ],
+            [
+              -97.094,
+              47.924
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "LOT-REA",
+        "name": "REA lots",
+        "kind": "lot_route",
+        "tier": 3,
+        "owner": "REA",
+        "machine": "",
+        "operator": "",
+        "needs_tracing": true,
+        "notes": "Pusher box if available. Snow storage corners not yet designated."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -97.08919999999999,
+              47.9262
+            ],
+            [
+              -97.0868,
+              47.9262
+            ],
+            [
+              -97.0868,
+              47.9278
+            ],
+            [
+              -97.08919999999999,
+              47.9278
+            ],
+            [
+              -97.08919999999999,
+              47.9262
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "LOT-FAC",
+        "name": "Facilities yard",
+        "kind": "lot_route",
+        "tier": 3,
+        "owner": "Facilities",
+        "machine": "",
+        "operator": "",
+        "needs_tracing": true,
+        "notes": "WO code 003."
+      }
+    }
+  ]
+}

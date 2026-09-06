@@ -1,0 +1,456 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -97.082,
+              47.921
+            ],
+            [
+              -97.06700000000001,
+              47.921
+            ],
+            [
+              -97.06700000000001,
+              47.9266
+            ],
+            [
+              -97.082,
+              47.9266
+            ],
+            [
+              -97.082,
+              47.921
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "MOW-01",
+        "name": "UND Green Space (core campus)",
+        "category": "UND Green Space",
+        "acres": 107.9,
+        "crew": "",
+        "frequency": "weekly",
+        "mower": "Toro 4100 D 10'",
+        "needs_tracing": true,
+        "notes": "Core academic campus between University Ave and 6th Ave N. Split into sub-areas when traced."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -97.091,
+              47.9238
+            ],
+            [
+              -97.086,
+              47.9238
+            ],
+            [
+              -97.086,
+              47.926199999999994
+            ],
+            [
+              -97.091,
+              47.926199999999994
+            ],
+            [
+              -97.091,
+              47.9238
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "MOW-02",
+        "name": "Sports Fields Green Space",
+        "category": "Sports Fields",
+        "acres": 8.4,
+        "crew": "",
+        "frequency": "2x weekly",
+        "mower": "Toro Sidewinder / 3280 D",
+        "needs_tracing": true,
+        "notes": "Practice and game fields. Height and stripe pattern differ from general turf."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -97.0945,
+              47.9242
+            ],
+            [
+              -97.0905,
+              47.9242
+            ],
+            [
+              -97.0905,
+              47.926199999999994
+            ],
+            [
+              -97.0945,
+              47.926199999999994
+            ],
+            [
+              -97.0945,
+              47.9242
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "MOW-03",
+        "name": "REA grounds",
+        "category": "REA",
+        "acres": 5.93,
+        "crew": "",
+        "frequency": "weekly",
+        "mower": "",
+        "needs_tracing": true,
+        "notes": "Ralph Engelstad Arena. REA is a separate owner on the snow map."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -97.0688,
+              47.925599999999996
+            ],
+            [
+              -97.06519999999999,
+              47.925599999999996
+            ],
+            [
+              -97.06519999999999,
+              47.9274
+            ],
+            [
+              -97.0688,
+              47.9274
+            ],
+            [
+              -97.0688,
+              47.925599999999996
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "MOW-04",
+        "name": "EERC grounds",
+        "category": "EERC",
+        "acres": 5.43,
+        "crew": "",
+        "frequency": "weekly",
+        "mower": "",
+        "needs_tracing": true,
+        "notes": "Energy & Environmental Research Center. Separate owner on the snow map."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -97.10000000000001,
+              47.9195
+            ],
+            [
+              -97.092,
+              47.9195
+            ],
+            [
+              -97.092,
+              47.9225
+            ],
+            [
+              -97.10000000000001,
+              47.9225
+            ],
+            [
+              -97.10000000000001,
+              47.9195
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "MOW-05",
+        "name": "Foundation property",
+        "category": "Foundation",
+        "acres": 24.39,
+        "crew": "",
+        "frequency": "biweekly",
+        "mower": "",
+        "needs_tracing": true,
+        "notes": "UND Foundation land. Confirm which parcels grounds actually mows."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -97.0796,
+              47.919999999999995
+            ],
+            [
+              -97.07839999999999,
+              47.919999999999995
+            ],
+            [
+              -97.07839999999999,
+              47.927
+            ],
+            [
+              -97.0796,
+              47.927
+            ],
+            [
+              -97.0796,
+              47.919999999999995
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "MOW-06",
+        "name": "Greenway (English Coulee corridor)",
+        "category": "Greenway",
+        "acres": 13.0,
+        "crew": "",
+        "frequency": "biweekly",
+        "mower": "",
+        "needs_tracing": true,
+        "notes": "Coulee banks and bike path edges. Slope work, check equipment."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -97.086,
+              47.914500000000004
+            ],
+            [
+              -97.074,
+              47.914500000000004
+            ],
+            [
+              -97.074,
+              47.9195
+            ],
+            [
+              -97.086,
+              47.9195
+            ],
+            [
+              -97.086,
+              47.914500000000004
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "MOW-07",
+        "name": "Ray Richards Golf Course",
+        "category": "Golf Course",
+        "acres": 62.37,
+        "crew": "",
+        "frequency": "course schedule",
+        "mower": "",
+        "needs_tracing": true,
+        "notes": "Course maintains its own greens and fairways. Record what grounds is responsible for."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -97.073,
+              47.920300000000005
+            ],
+            [
+              -97.067,
+              47.920300000000005
+            ],
+            [
+              -97.067,
+              47.9227
+            ],
+            [
+              -97.073,
+              47.9227
+            ],
+            [
+              -97.073,
+              47.920300000000005
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "MOW-08",
+        "name": "Primary Housing",
+        "category": "Primary Housing",
+        "acres": 15.19,
+        "crew": "",
+        "frequency": "weekly",
+        "mower": "",
+        "needs_tracing": true,
+        "notes": "Residence hall grounds south of University Ave."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -97.067,
+              47.918
+            ],
+            [
+              -97.06099999999999,
+              47.918
+            ],
+            [
+              -97.06099999999999,
+              47.921
+            ],
+            [
+              -97.067,
+              47.921
+            ],
+            [
+              -97.067,
+              47.918
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "MOW-09",
+        "name": "Housing (apartments)",
+        "category": "Housing",
+        "acres": 27.02,
+        "crew": "",
+        "frequency": "weekly",
+        "mower": "",
+        "needs_tracing": true,
+        "notes": "Apartment complexes. Housing is a separate owner on the snow map."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -97.0817,
+              47.920700000000004
+            ],
+            [
+              -97.0793,
+              47.920700000000004
+            ],
+            [
+              -97.0793,
+              47.9219
+            ],
+            [
+              -97.0817,
+              47.9219
+            ],
+            [
+              -97.0817,
+              47.920700000000004
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "MOW-10",
+        "name": "Gorecki Alumni Center",
+        "category": "Alumni",
+        "acres": 1.32,
+        "crew": "",
+        "frequency": "weekly",
+        "mower": "",
+        "needs_tracing": true,
+        "notes": "High-visibility. Trim same day as mow."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -97.07849999999999,
+              47.919200000000004
+            ],
+            [
+              -97.0755,
+              47.919200000000004
+            ],
+            [
+              -97.0755,
+              47.9208
+            ],
+            [
+              -97.07849999999999,
+              47.9208
+            ],
+            [
+              -97.07849999999999,
+              47.919200000000004
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "MOW-11",
+        "name": "Wellness Center grounds",
+        "category": "Wellness",
+        "acres": 2.66,
+        "crew": "",
+        "frequency": "weekly",
+        "mower": "",
+        "needs_tracing": true,
+        "notes": "Wellness is a separate owner on the snow map."
+      }
+    }
+  ]
+}
