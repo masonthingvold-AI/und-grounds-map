@@ -24,7 +24,13 @@ tools/build.py          rebuilds data/bundle.js and validates the geojson
 tools/seed_data.py      the original placeholder data. Do not re-run once real shapes exist.
 work/                   exported work logs from the map (work-log-YYYY-MM-DD.json)
 docs/data-schema.md     field definitions for every layer
+docs/app-spec-v0.2.md   Claude's spec for the shared workforce app (roles, certs, assignments, snow, equipment log, Ecopia, My UND)
+docs/product-brief-v0.1.md  ChatGPT/Codex product brief for the same app (P0/P1/P2, acceptance criteria, records model)
 ```
+
+## Project hub and checkouts
+
+Mason keeps a hub folder at `~/Desktop/UND Grounds` with shortcuts: `Claude` (this repo on the Mac), `Codex` (a separate checkout for ChatGPT/Codex once cloned from GitHub), `Reference Materials` (the original source PDFs), `Handoffs` (planning notes). GitHub is the shared truth: https://github.com/masonthingvold-AI/und-grounds-map. Each assistant works in its own checkout, commits in plain English, and pulls before starting. Decisions go in `docs/`, not in chat.
 
 ## Rules
 
