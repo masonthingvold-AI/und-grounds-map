@@ -187,6 +187,19 @@
         <button class="btn" id="btnUndo">Undo</button>
       </div>
       <div class="muted" id="editStatus" style="margin-top:8px">No unsaved changes.</div>
+      <h2 style="margin-top:14px">Line up the mowing areas</h2>
+      <p class="muted">Zoom in on a spot you know, then tap until the edges sit on the grass. Moves every imported shape together (shapes you traced yourself stay put), or only the selected one.</p>
+      <div class="row"><input type="checkbox" id="nudgeSel"><label for="nudgeSel">Only the selected shape</label></div>
+      <div class="field"><label>Step</label><select id="nudgeStep"><option value="0.5">0.5 m (about 1.5 ft)</option><option value="1" selected>1 m (about 3 ft)</option><option value="3">3 m (about 10 ft)</option><option value="10">10 m (about 33 ft)</option></select></div>
+      <div class="btns" id="nudge">
+        <button class="btn" data-dy="1">&uarr; North</button>
+        <button class="btn" data-dy="-1">&darr; South</button>
+        <button class="btn" data-dx="-1">&larr; West</button>
+        <button class="btn" data-dx="1">East &rarr;</button>
+        <button class="btn" data-s="1.005">Bigger</button>
+        <button class="btn" data-s="0.995">Smaller</button>
+      </div>
+      <div class="muted" id="nudgeStatus" style="margin-top:6px">Not moved yet. Undo takes a step back; Save keeps it.</div>
       <h2 style="margin-top:14px">Mowing map overlay</h2>
       <p class="muted">Lay the 2025 mowing map over the satellite view, drag its two corner pins until the buildings line up, then import its colored areas as mowing areas.</p>
       <div class="row"><input type="checkbox" id="ovShow"><label for="ovShow">Show overlay</label></div>
@@ -985,6 +998,38 @@
     toast(`Imported ${added.length} mowing areas. Save to keep them.`);
     document.getElementById("ovStatus").textContent = `Imported ${added.length} regions (${Object.entries(counters).map(([k,v])=>`${k} ${v}`).join(", ")}). Total drawn ${added.reduce((a,f)=>a+f.properties.drawn_acres,0).toFixed(1)} ac. Save with Cmd/Ctrl+S or Save to repo.`;
   }
+  // ---- nudge: shift or scale the imported mowing areas (and the overlay image with them) in metres
+  const nudgeTotal = {x:0, y:0, s:1};
+  function eachCoord(geom, fn){
+    const walk = a => { if(typeof a[0] === "number") fn(a); else a.forEach(walk); };
+    walk(geom.coordinates);
+  }
+  function nudgeMowing(dxm, dym, scale){
+    const onlySel = document.getElementById("nudgeSel").checked;
+    let feats;
+    if(onlySel){ if(!selected || selected.layerKey !== "mowing_areas") return toast("Select a mowing area first"); feats = [selected.feature]; }
+    else feats = layersData.mowing_areas.features.filter(f => f.properties.needs_tracing !== false);
+    if(!feats.length) return toast("Nothing to move");
+    snapshot();
+    let sx = 0, sy = 0, n = 0; feats.forEach(f => eachCoord(f.geometry, c => { sx += c[0]; sy += c[1]; n++; }));
+    const cx = sx/n, cy = sy/n, mLat = 1/110574, mLng = 1/(111320*Math.cos(cy*Math.PI/180));
+    const move = c => { c[0] = cx + (c[0]-cx)*scale + dxm*mLng; c[1] = cy + (c[1]-cy)*scale + dym*mLat; };
+    feats.forEach(f => { eachCoord(f.geometry, move); if(f.geometry.type==="Polygon") f.properties.drawn_acres = +geodesicAcres(f.geometry.coordinates[0]).toFixed(2); });
+    if(!onlySel){
+      nudgeTotal.x += dxm; nudgeTotal.y += dym; nudgeTotal.s *= scale;
+      // keep the overlay drawing on top of its shapes
+      const b = ovBounds(), corner = ll => { const c = [ll.lng, ll.lat]; move(c); return [c[1], c[0]]; };
+      ovSaveBounds(L.latLngBounds(corner(b.getNorthWest()), corner(b.getSouthEast()))); if(ovLayer) ovLayer.setBounds(ovBounds());
+      document.getElementById("nudgeStatus").textContent = `Moved ${nudgeTotal.x.toFixed(1)} m east, ${nudgeTotal.y.toFixed(1)} m north, size ${(nudgeTotal.s*100).toFixed(1)}%. Save to keep it.`;
+    } else document.getElementById("nudgeStatus").textContent = `Moved ${feats[0].properties.name}. Save to keep it.`;
+    const keepSel = selected; markDirty(); rebuildAll();
+    if(keepSel){ const it = index.find(i => i.feature === keepSel.feature); if(it) select(it.layerKey, it.feature, it.layer); }
+  }
+  document.getElementById("nudge").addEventListener("click", e => {
+    const b = e.target.closest("button"); if(!b) return;
+    const step = +document.getElementById("nudgeStep").value;
+    nudgeMowing((+b.dataset.dx||0)*step, (+b.dataset.dy||0)*step, +(b.dataset.s||1));
+  });
   document.getElementById("ovShow").addEventListener("change", e => ovShow(e.target.checked));
   document.getElementById("ovOpacity").addEventListener("input", e => { if(ovLayer) ovLayer.setOpacity((+e.target.value)/100); });
   document.getElementById("ovCorners").onclick = async () => { document.getElementById("ovShow").checked = true; await ovShow(true); ovPins(ovMarkers.length===0); };
