@@ -735,9 +735,9 @@
     commitGeometry(selected.layer, false); renderDetail();
   }
   function onVertexEdit(){ if(selected){ commitGeometry(selected.layer, true); renderDetail(); } }
-  // the drawing's outlines carry stacked near-duplicate corners; thin them (under about 0.3 m apart) so the handles are usable
+  // the drawing's outlines carry stacked near-duplicate corners; thin them (steps under about 1 m) so the handles are usable
   function thinCorners(l){
-    const z = 19, ring = r => { const pts = r.map(ll => map.project(ll, z)); const out = L.LineUtil.simplify(pts, 1.5); return out.length >= 3 ? out.map(pt => map.unproject(pt, z)) : r; };
+    const z = 19, ring = r => { const pts = r.map(ll => map.project(ll, z)); const out = L.LineUtil.simplify(pts, 6); return out.length >= 3 ? out.map(pt => map.unproject(pt, z)) : r; };
     const walk = a => (a.length && !Array.isArray(a[0])) ? ring(a) : a.map(walk);
     l.setLatLngs(walk(l.getLatLngs()));
   }
