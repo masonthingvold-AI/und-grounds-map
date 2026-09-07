@@ -1,6 +1,6 @@
 {
   "title": "UND Grounds Map",
-  "subtitle": "Landscaping and snow removal, UND owned campus",
+  "subtitle": "Landscaping and snow removal",
   "center": [
     47.9235,
     -97.076
@@ -15,7 +15,7 @@
     {
       "file": "parcels",
       "label": "UND owned parcels (city records)",
-      "defaultOn": true
+      "defaultOn": false
     },
     {
       "file": "mowing_areas",
@@ -30,7 +30,7 @@
     {
       "file": "assets",
       "label": "Equipment & assets",
-      "defaultOn": true
+      "defaultOn": false
     }
   ],
   "mowing_category_colors": {

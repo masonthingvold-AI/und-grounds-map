@@ -92,6 +92,11 @@ def main():
                                   home_zone_id = excluded.home_zone_id, location = excluded.location, attrs = excluded.attrs, active = true""",
                              (a["id"], a["name"], a["asset_type"], a["cls"], a["status"], None, json.dumps(a["geom"]), json.dumps(a["attrs"])))
             a_added += 1
+        # anything no longer in the GeoJSON was a placeholder: deactivate it (history stays, nothing is deleted)
+        zone_ids = [z["id"] for z in zone_rows()]; asset_ids = [a["id"] for a in asset_rows()]
+        if not check:
+            conn.execute("update public.zones set active = false where active and not (id = any(%s))", (zone_ids,))
+            conn.execute("update public.assets set active = false where active and not (id = any(%s))", (asset_ids,))
         if check: conn.rollback()
         else: conn.commit()
         n = conn.execute("select count(*) from public.zones").fetchone()[0]

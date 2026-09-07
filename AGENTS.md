@@ -71,7 +71,8 @@ Mason keeps a hub folder at `~/Desktop/UND Grounds` with shortcuts: `Claude` (th
 
 ## Open questions the data still needs (carry these forward, do not delete)
 
-- Real polygon for every mowing area (all 11 are placeholders)
+- Sep 7, 2026: Mason cleared every placeholder Claude drew (snow routes, assets, boundary box). The mowing layer is now the 2025 mowing map's colored regions at the drawing's scale, roughly placed; Mason lines the overlay up in Edit mode and re-imports to place them exactly. Do not re-run tools/seed_data.py.
+- Real polygon for every mowing area (imported from the drawing, edges to verify)
 - Sidewalk network by segment with widths
 - Lot inventory with square footage and which stalls are accessible
 - Designated ADA routes (Tier 1 is written around a list that does not exist yet)
