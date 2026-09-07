@@ -2,7 +2,7 @@ const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp
 export const groups = [
  ['WORK', null, [['day','My Day','sun'],['map','Map','map'],['status','Zone status','layers'],['assets','Assets','tractor']]],
  ['CONNECT',null,[['messages','Messages','messages-square'],['crew-lead','Ask my crew lead','message-circle']]],
- ['DISPATCH',['lead','admin'],[['dispatch','Board','columns-3'],['people','People','users']]],
+ ['DISPATCH',['lead','admin','oversight'],[['dispatch','Board','columns-3'],['people','People','users']]],
  ['RECORDS',['lead','admin','oversight'],[['records','Service records','clipboard-list'],['evidence','Evidence','camera']]],
  ['ADMIN',['admin'],[['certifications','Certifications','badge-check'],['keep-outs','Keep-outs','octagon-alert'],['mode','Mode','snowflake']]]
 ];

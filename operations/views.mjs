@@ -1,8 +1,12 @@
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const remainingInZone=(tasks,id)=>tasks.filter(t=>t.zone_id===id&&!['done','canceled'].includes(t.state));
-export const campusParcels=features=>features.filter(f=>f.properties.site==='main'&&f.properties.owner_class==='und_state');
+const points=coordinates=>typeof coordinates[0]==='number'?[coordinates]:coordinates.flatMap(points);
+export const campusParcels=(features,boundary)=>{
+ const extent=points(boundary.geometry.coordinates),xs=extent.map(p=>p[0]),ys=extent.map(p=>p[1]);
+ return features.filter(f=>f.properties.site==='main'&&f.properties.owner_class==='und_state'&&points(f.geometry.coordinates).some(([x,y])=>x>=Math.min(...xs)&&x<=Math.max(...xs)&&y>=Math.min(...ys)&&y<=Math.max(...ys)));
+};
 let dataPromise;
-const data=()=>dataPromise??=Promise.all(['parcels','mowing_areas','snow_routes'].map(async n=>{const r=await fetch('../data/'+n+'.geojson');if(!r.ok)throw Error('Map data could not be loaded.');return r.json();}));
+const data=()=>dataPromise??=Promise.all(['parcels','mowing_areas','snow_routes','boundary'].map(async n=>{const r=await fetch('../data/'+n+'.geojson');if(!r.ok)throw Error('Map data could not be loaded.');return r.json();}));
 let activeMap;
 export function clearMap(){activeMap?.remove();activeMap=null;}
 function mapInto(element,features){
@@ -13,7 +17,7 @@ function mapInto(element,features){
 }
 export async function showMap(target){
  target.innerHTML='<p class="eyebrow">Your campus</p><h1>UND campus</h1><p class="muted">UND state-owned campus parcels. City streets and surrounding property are not shown. Parcel outlines are not the final grounds service boundary.</p><div id="campus-focus" class="focus-map" aria-label="UND campus parcel map"></div><p class="muted">Source: City of Grand Forks parcel inventory. Campus service boundary still needs tracing.</p>';
- try{const [parcels]=await data();if(!target.querySelector('#campus-focus'))return;mapInto(target.querySelector('#campus-focus'),campusParcels(parcels.features));}catch(e){target.textContent=e.message;}
+ try{const [parcels,,,boundary]=await data();if(!target.querySelector('#campus-focus'))return;mapInto(target.querySelector('#campus-focus'),campusParcels(parcels.features,boundary.features.find(f=>f.properties.kind==='campus')));}catch(e){target.textContent=e.message;}
 }
 export async function showZone(target,tasks,openTask,ask){
  const zones=[...new Map(tasks.map(t=>[t.zone_id,t.zone_name])).entries()];
@@ -21,7 +25,7 @@ export async function showZone(target,tasks,openTask,ask){
  const select=target.querySelector('select');if(!zones.length){target.querySelector('#zone-work').textContent='No assigned zones to show.';return;}
  let request=0;
  async function draw(){const version=++request,id=select.value,remaining=remainingInZone(tasks,id),body=target.querySelector('#zone-work');clearMap();
- body.innerHTML=`<div class="zone-layout"><div><div id="zone-focus" class="focus-map small"></div><p class="muted">Zone geometry is a tracing placeholder. Confirm the actual work area with your lead.</p></div><section><h2>${remaining.length} tasks left</h2>${remaining.map(t=>`<article class="card"><span class="tag">Priority ${t.priority}</span><h3>${esc(t.outcome)}</h3><p class="muted">${esc(t.state.replaceAll('_',' '))}</p><button data-task="${esc(t.task_id)}">View task</button></article>`).join('')||'<p>No remaining assigned tasks in this zone.</p>'}<h2>Other ways to help</h2><p class="muted">Ask your lead before changing assignments. These are suggestions, not assigned work.</p>${['Report a hazard','Check for litter or obstructions','Ask for another task in this zone'].map(label=>`<button class="suggestion" data-suggest="${esc(label)}">${label}</button>`).join('')}</section></div>`;
+ body.innerHTML=`<div class="zone-layout"><div><div id="zone-focus" class="focus-map small"></div><p class="muted">Zone geometry is a tracing placeholder. Confirm the actual work area with your lead.</p></div><section><h2>${remaining.length} ${remaining.length===1?'task':'tasks'} left</h2>${remaining.map(t=>`<article class="card"><span class="tag">Priority ${t.priority}</span><h3>${esc(t.outcome)}</h3><p class="muted">${esc(t.state.replaceAll('_',' '))}</p><button data-task="${esc(t.task_id)}">View task</button></article>`).join('')||'<p>No remaining assigned tasks in this zone.</p>'}<h2>Other ways to help</h2><p class="muted">Ask your lead before changing assignments. These are suggestions, not assigned work.</p>${['Report a hazard','Check for litter or obstructions','Ask for another task in this zone'].map(label=>`<button class="suggestion" data-suggest="${esc(label)}">${label}</button>`).join('')}</section></div>`;
  body.querySelectorAll('[data-task]').forEach(b=>b.onclick=()=>openTask(b.dataset.task));body.querySelectorAll('[data-suggest]').forEach(b=>b.onclick=()=>ask(b.dataset.suggest+' · '+select.selectedOptions[0].textContent));
  try{const [,mowing,snow]=await data();if(version!==request||!body.isConnected)return;const feature=[...mowing.features,...snow.features].find(f=>f.properties.id===id);if(feature)mapInto(body.querySelector('#zone-focus'),[feature]);else body.querySelector('#zone-focus').textContent='No geometry available for this zone.';}catch(e){if(body.isConnected)body.querySelector('#zone-focus').textContent=e.message;}
  }
@@ -39,7 +43,7 @@ export function dashboard(target,state){
 }
 let weatherCache;
 async function loadWeather(target){
- try{if(!weatherCache||Date.now()-weatherCache.at>600000){const point=await fetch('https://api.weather.gov/points/47.922,-97.073',{signal:AbortSignal.timeout(10000)});if(!point.ok)throw Error();const p=await point.json();const response=await fetch(p.properties.forecast,{signal:AbortSignal.timeout(10000)});if(!response.ok)throw Error();const forecast=await response.json();weatherCache={at:Date.now(),period:forecast.properties.periods.find(p=>Date.parse(p.endTime)>Date.now()),updated:forecast.properties.updated};}
+ try{if(!weatherCache||Date.now()-weatherCache.at>600000){const point=await fetch('https://api.weather.gov/points/47.922,-97.073',{signal:AbortSignal.timeout(10000)});if(!point.ok)throw Error();const p=await point.json();const response=await fetch(p.properties.forecast,{signal:AbortSignal.timeout(10000)});if(!response.ok)throw Error();const forecast=await response.json();weatherCache={at:Date.now(),period:forecast.properties.periods.find(p=>Date.parse(p.endTime)>Date.now()),updated:forecast.properties.updateTime||forecast.properties.generatedAt||new Date().toISOString()};}
  const p=weatherCache.period;if(!p)throw Error();target.innerHTML=`<h3>${esc(p.temperature)}°${esc(p.temperatureUnit)} · ${esc(p.shortForecast)}</h3><p>${esc(p.name)} · Wind ${esc(p.windSpeed)} ${esc(p.windDirection)}</p><p class="muted">Forecast updated ${esc(new Date(weatherCache.updated).toLocaleString())}</p>`;
  }catch{target.textContent='Forecast unavailable. Check the National Weather Service for current conditions.';}
 }
