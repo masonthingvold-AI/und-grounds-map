@@ -312,6 +312,9 @@ def main():
             check("lead acknowledges", r.get("ok") is True and lead.q("select open from public.v_event_reminders where reminder_id=%s", rid[0])[0][0] is False)
             check("second ack -> GRND-410", lead.rpc("event_reminder_ack", idempotency_key=k(), reminder_id=rid[0]).get("error") == "GRND-410")
         conn.execute("delete from public.campus_events where id like 'ath:smoke_ics_%'")
+        # the test zones and machine stay out of the real lists between runs
+        conn.execute("update public.zones set active = false where id in ('TEST-SW-1','TEST-SW-2')")
+        conn.execute("update public.assets set active = false where id = 'TST-EQ1'")
         conn.commit()
     print(f"\n{sum(results)}/{len(results)} checks passed")
     sys.exit(0 if all(results) else 1)
