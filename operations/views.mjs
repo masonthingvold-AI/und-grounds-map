@@ -31,10 +31,10 @@ export async function showZone(target,tasks,openTask,ask){
  }
  select.onchange=draw;await draw();
 }
-export function showMessages(target,crewLead=false,prefill=''){
+export function showMessages(target,crewLead=false,prefill='',owner='preview'){
  target.innerHTML=`<p class="eyebrow">Stay connected</p><h1>${crewLead?'Ask my crew lead':'Messages'}</h1><div class="card"><h2>${crewLead?'Your crew lead':'Crew messages'}</h2><p class="muted">Messaging is not connected yet. You can prepare a draft here; nothing is sent.</p><label for="message-draft">${crewLead?'What do you need help with?':'Draft message'}</label><textarea id="message-draft" placeholder="Describe the task, location, or help you need"></textarea><button id="save-message">Save draft on this device</button><p id="draft-status" role="status"></p></div>`;
- const input=target.querySelector('textarea');try{input.value=prefill||sessionStorage.getItem('grounds-message-draft')||'';}catch{input.value=prefill;}
- target.querySelector('#save-message').onclick=()=>{try{sessionStorage.setItem('grounds-message-draft',input.value);target.querySelector('#draft-status').textContent='Draft saved for this preview session. Not sent.';}catch{target.querySelector('#draft-status').textContent='Draft could not be saved. Keep this screen open.';}};
+ const input=target.querySelector('textarea');try{input.value=prefill||sessionStorage.getItem('grounds-message-draft:'+owner)||'';}catch{input.value=prefill;}
+ target.querySelector('#save-message').onclick=()=>{try{sessionStorage.setItem('grounds-message-draft:'+owner,input.value);target.querySelector('#draft-status').textContent='Draft saved for this preview session. Not sent.';}catch{target.querySelector('#draft-status').textContent='Draft could not be saved. Keep this screen open.';}};
 }
 export function dashboard(target,state){
  const content=document.createElement('section');content.className='day-dashboard';

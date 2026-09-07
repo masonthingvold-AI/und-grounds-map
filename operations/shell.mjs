@@ -13,6 +13,7 @@ const icon = name => `<i data-lucide="${name}" aria-hidden="true"></i>`;
 const saved = (key, fallback) => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
 const remember = (key, value) => { try { localStorage.setItem(key,value); } catch {} };
 export function mountShell(root, {onNavigate, onSignOut}) {
+ const events=new AbortController();
  let state = {}, compact = saved('und-grounds-compact','true') === 'true';
  root.innerHTML = `<header class="g-header"><a class="g-logo" href="https://und.edu" aria-label="University of North Dakota"><img src="assets/und_leaders_rev.png" alt="University of North Dakota"></a><div class="g-title"><span>UND</span><span>GROUNDS</span></div><button class="g-avatar" aria-label="Account" aria-expanded="false" aria-controls="account-menu"></button><div id="account-menu" class="g-account" hidden><p>Local layout preview</p><button data-action="settings">Settings</button><button data-action="theme">Change theme</button><button data-action="signout">Sign out</button></div></header><nav class="g-rail" aria-label="Grounds navigation"></nav><main class="g-main"><div class="inner"><p class="g-demo">LOCAL PREVIEW · Synthetic people and work · No live dispatch or server verification</p><div id="notice" role="status" aria-live="polite"></div><div id="content"></div></div></main><nav class="g-bottom" aria-label="Mobile navigation"></nav><dialog class="g-sheet" aria-label="More navigation"><button class="g-close" data-action="close">Close</button><div class="g-more-content"></div></dialog>`;
  const rail = root.querySelector('.g-rail'), sheet = root.querySelector('.g-sheet'), account = root.querySelector('.g-account'), avatar = root.querySelector('.g-avatar');
@@ -49,9 +50,9 @@ export function mountShell(root, {onNavigate, onSignOut}) {
    case 'settings': closeAccount();onNavigate('settings');break;
    case 'signout': sheet.close();closeAccount();onSignOut();break;
   }
- });
- document.addEventListener('click',event=>{if(!account.contains(event.target)&&!avatar.contains(event.target))closeAccount();});
- document.addEventListener('keydown',event=>{if(event.key==='Escape')closeAccount();});
- window.addEventListener('resize',resize);
- return {update(next){state=next;draw();}};
+ },{signal:events.signal});
+ document.addEventListener('click',event=>{if(!account.contains(event.target)&&!avatar.contains(event.target))closeAccount();},{signal:events.signal});
+ document.addEventListener('keydown',event=>{if(event.key==='Escape')closeAccount();},{signal:events.signal});
+ window.addEventListener('resize',resize,{signal:events.signal});
+ return {destroy(){events.abort();sheet.close();},update(next){state=next;draw();}};
 }

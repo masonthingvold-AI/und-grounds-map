@@ -5,7 +5,7 @@ export class CommandQueue{
  async persist(){await this.save(this.owner,'commands',this.items);this.changed();}
  async add(fn,args,meta={}){
  const taskId=meta.taskId||args.task_id,previous=taskId?[...this.items].reverse().find(c=>c.taskId===taskId&&c.status!=='canceled'):null;
- const item={id:crypto.randomUUID(),fn,args:{...args,idempotency_key:crypto.randomUUID()},taskId,dependsOn:previous?.id,created_at:new Date().toISOString(),attempts:0,status:'pending',nextAt:0};
+ const item={id:crypto.randomUUID(),fn,args:{...args,idempotency_key:crypto.randomUUID()},taskId,dependsOn:previous?.status!=='done'?previous?.id:undefined,created_at:new Date().toISOString(),attempts:0,status:'pending',nextAt:0};
  this.items.push(item);await this.persist();await this.flush();return item;
  }
  async flush(){if(this.running)return this.running;if(this.stopped)return;this.running=this.drain().finally(()=>this.running=null);return this.running;}
@@ -19,7 +19,7 @@ export class CommandQueue{
  if(item.fn==='service_finalize'&&(item.args.photos||[]).some(p=>!p.path)){item.status='validation';item.error={message:'Photos must upload before completion.',details:{fields:['photos']}};await this.persist();continue;}
  if(!item.attempts&&dependency?.result?.revision!=null)item.args.expected_revision=dependency.result.revision;
  item.attempts++;await this.persist();
- try{item.result=await this.send(item.fn,item.args);item.status='done';item.error=null;await this.persist();await this.completed(item);}
+ try{item.result=await this.send(item.fn,item.args);item.status='done';item.error=null;await this.persist();try{await this.completed(item);}catch(e){this.changed(e);}}
  catch(e){item.error={message:e.message,code:e.code,details:e.details};
  if(['401','GRND-401'].includes(e.code)){this.stopped=true;await this.persist();this.changed(e);return;}
  if(e.retryable){item.nextAt=Date.now()+backoff(item.attempts);}else item.status=e.code==='GRND-422'?'validation':'review';
