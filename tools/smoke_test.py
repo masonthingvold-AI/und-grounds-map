@@ -16,6 +16,7 @@ PEOPLE = {
     "jordan": dict(email="jordan@test.invalid", name="Jordan Test", tier="temp2",     role="worker"),
     "sam":    dict(email="sam@test.invalid",    name="Sam Test",    tier="temp1",     role="worker"),
     "other":  dict(email="other@test.invalid",  name="Otto Other",  tier="temp1",     role="worker"),
+    "boss":   dict(email="boss@test.invalid",   name="Dana Oversight", tier="oversight", role="oversight"),
 }
 TEST_PASSWORD = "Grounds-Test-2026!"   # synthetic accounts only; see docs/supabase-setup.md
 results = []
@@ -71,7 +72,7 @@ def main():
         crewA = conn.execute("select id from public.crews where name='Snow walks A'").fetchone()[0]
         crewB = conn.execute("select id from public.crews where name='Snow walks B'").fetchone()[0]
         for k, p in PEOPLE.items():
-            crew = None if k == "chad" else (crewB if k == "other" else crewA)
+            crew = None if k in ("chad","boss") else (crewB if k == "other" else crewA)
             conn.execute("""insert into public.profiles(id, full_name, email, employment_tier, app_role, crew_id, is_student, active)
                             values (%s,%s,%s,%s,%s,%s,%s,true) on conflict (id) do update set crew_id = excluded.crew_id, app_role = excluded.app_role, employment_tier = excluded.employment_tier, active = true""",
                          (ids[k], p["name"], p["email"], p["tier"], p["role"], crew, k in ("jordan","sam","other")))
