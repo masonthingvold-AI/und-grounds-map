@@ -37,7 +37,7 @@ create table public.asset_reservations (
 create index asset_reservations_asset_idx on public.asset_reservations(asset_id) where released_at is null;
 
 create or replace function public.asset_available(p_asset text, p_window tstzrange, p_required_class text default null)
-returns jsonb language plpgsql stable security definer set search_path = public as $$
+returns jsonb language plpgsql stable security definer set search_path = public, extensions as $$
 declare a record; conflict_ record;
 begin
   select * into a from public.assets where id = p_asset and active;

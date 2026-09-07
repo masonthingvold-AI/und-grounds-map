@@ -47,7 +47,7 @@ $$;
 
 -- ---------- shift_start ----------
 create or replace function public.shift_start(idempotency_key uuid, device_id text default null, location jsonb default null)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare prior jsonb; open_ record; s record;
 begin
   prior := public.idem_check(idempotency_key, 'shift_start'); if prior is not null then return prior; end if;
@@ -63,7 +63,7 @@ end $$;
 
 -- ---------- shift_end ----------
 create or replace function public.shift_end(idempotency_key uuid, shift_id uuid, location jsonb default null, note text default null)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare prior jsonb; s record; open_tasks uuid[];
 begin
   prior := public.idem_check(idempotency_key, 'shift_end'); if prior is not null then return prior; end if;
@@ -85,7 +85,7 @@ create or replace function public.open_task_ids_for(p uuid) returns uuid[] langu
 
 -- lead or admin ends someone else's shift (phone died)
 create or replace function public.shift_end_for(idempotency_key uuid, profile_id uuid, note text default null)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare prior jsonb; r text; s record;
 begin
   prior := public.idem_check(idempotency_key, 'shift_end_for'); if prior is not null then return prior; end if;
@@ -100,7 +100,7 @@ end $$;
 
 -- ---------- location_upload ----------
 create or replace function public.location_upload(idempotency_key uuid, shift_id uuid, samples jsonb)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare prior jsonb; s record; smp jsonb; accepted int := 0; rejected jsonb := '[]'::jsonb; i int := 0;
         pt geometry; acc numeric; ta timestamptz; nz record; asmt jsonb; last_ta timestamptz; last_asmt jsonb;
 begin

@@ -76,7 +76,7 @@ create trigger evidence_events_immutable before update or delete on public.evide
 
 -- canonical serialization: jsonb text form is deterministic for equal jsonb values
 create or replace function public.evidence_append(p_record uuid, p_kind text, p_payload jsonb) returns record
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 declare last_ record; s int; prev text; h text; ev record; canon text;
 begin
   select seq, hash into last_ from public.evidence_events where record_id = p_record order by seq desc limit 1 for update;
@@ -91,7 +91,7 @@ end $$;
 
 -- recompute the chain for one record; returns ok plus the first bad seq if any
 create or replace function public.evidence_verify(p_record uuid) returns jsonb
-language plpgsql stable security definer set search_path = public as $$
+language plpgsql stable security definer set search_path = public, extensions as $$
 declare e record; prev text := repeat('0', 64); canon text; h text; n int := 0;
 begin
   perform public.auth_role();
@@ -111,7 +111,7 @@ end $$;
 -- supabase.storage.from('evidence').upload(path, blob, { contentType: 'image/jpeg', upsert: false }).
 -- The storage policy below only allows an insert at a path this function registered for this user.
 create or replace function public.evidence_upload_url(task_id uuid, kind text, client_photo_id uuid, sha256 text, taken_at timestamptz, location jsonb default null)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare t public.tasks; r text; p text; existing record;
 begin
   r := public.auth_role();
@@ -136,7 +136,7 @@ create or replace function public.service_finalize(
   idempotency_key uuid, task_id uuid, action text, started_at timestamptz, completed_at timestamptz, location jsonb, photos jsonb,
   expected_revision int default null, materials jsonb default '[]'::jsonb, asset_id text default null, attachment_id text default null,
   conditions jsonb default '{}'::jsonb, notes text default null, supersedes_photo_ids uuid[] default null)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare prior jsonb; t public.tasks; s record; a public.assignments; pt geometry; acc numeric; asmt jsonb; rec public.service_records;
         ph jsonb; eo record; so record; missing text[] := '{}'; kinds text[] := '{}'; m jsonb; ev record; last_ev record; rid uuid;
 begin
@@ -211,7 +211,7 @@ create or replace function public.zone_status_from_action(z text, zv uuid, actio
 
 -- ---------- task_approve ----------
 create or replace function public.task_approve(idempotency_key uuid, task_id uuid, expected_revision int default null, note text default null)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare prior jsonb; r text; t public.tasks; rec record; ev record;
 begin
   prior := public.idem_check(idempotency_key, 'task_approve'); if prior is not null then return prior; end if;

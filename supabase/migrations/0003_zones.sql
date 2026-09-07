@@ -46,7 +46,7 @@ create trigger zone_versions_immutable before update or delete on public.zone_ve
 -- create a new version and make it current. Service role or admin only (map edits come through tools/seed_supabase.py for now).
 create or replace function public.zone_version_create(
   p_zone_id text, p_geom jsonb, p_source text, p_needs_tracing boolean default true, p_note text default null)
-returns uuid language plpgsql security definer set search_path = public as $$
+returns uuid language plpgsql security definer set search_path = public, extensions as $$
 declare v int; vid uuid; g geometry;
 begin
   if auth.uid() is not null and not public.is_admin() then perform public.grnd_error(403, 'Only admins create zone versions'); end if;
@@ -80,7 +80,7 @@ create index keepouts_zone_idx on public.keepouts(zone_id) where closed_at is nu
 create index keepouts_geom_gix on public.keepouts using gist (geom);
 
 create or replace function public.keepout_active_for_zone(z text) returns text
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = public, extensions as $$
   select kind || ': ' || reason from public.keepouts
   where zone_id = z and closed_at is null and starts_at <= now() and (reentry_at is null or reentry_at > now())
   order by starts_at desc limit 1
@@ -89,7 +89,7 @@ $$;
 create or replace function public.keepout_open(
   idempotency_key uuid, kind text, reason text, zone_id text default null, geom jsonb default null,
   product text default null, reentry_at timestamptz default null, photo_path text default null, notes text default null)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare prior jsonb; r text; kid uuid; g geometry;
 begin
   prior := public.idem_check(idempotency_key, 'keepout_open'); if prior is not null then return prior; end if;
@@ -104,7 +104,7 @@ begin
 end $$;
 
 create or replace function public.keepout_close(idempotency_key uuid, keepout_id uuid, note text default null)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare prior jsonb; r text; n int;
 begin
   prior := public.idem_check(idempotency_key, 'keepout_close'); if prior is not null then return prior; end if;
@@ -123,7 +123,7 @@ end $$;
 -- No fixed buffer. Wide accuracy on a narrow feature is ambiguous, never inside.
 create or replace function public.assess_location(
   p_point geometry, p_accuracy_m numeric, p_taken_at timestamptz, p_zone_version_id uuid)
-returns jsonb language plpgsql stable security definer set search_path = public as $$
+returns jsonb language plpgsql stable security definer set search_path = public, extensions as $$
 declare zv record; d numeric; acc numeric; age_s numeric; res text; zclass text; halfwidth numeric;
 begin
   if p_point is null or p_zone_version_id is null then
@@ -148,7 +148,7 @@ end $$;
 -- which current zone version (polygon classes) contains or is nearest this point, within 30 m
 create or replace function public.nearest_zone_version(p_point geometry, p_classes text[] default null)
 returns table (zone_id text, zone_version_id uuid, distance_m numeric)
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = public, extensions as $$
   select z.id, zv.id, round(st_distance(zv.geog, p_point::geography)::numeric, 1)
   from public.zones z join public.zone_versions zv on zv.id = z.current_version_id
   where z.active and z.class <> 'campus' and (p_classes is null or z.class = any(p_classes))

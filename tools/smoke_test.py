@@ -134,9 +134,11 @@ def main():
             check("shift_start", r.get("ok") is True, str(r)[:80]); shift = r["data"]["shift_id"]
             r = jordan.rpc("shift_start", idempotency_key=k(), device_id="test-phone")
             check("second shift_start -> GRND-410", r.get("error") == "GRND-410", str(r)[:200])
-            samples = [{"taken_at": "2026-09-07T03:00:00Z", "lng": -97.0731, "lat": 47.9229, "accuracy_m": 6.5, "battery": 80},
-                       {"taken_at": "2026-09-07T03:00:20Z", "lng": -97.0730, "lat": 47.9229, "accuracy_m": 5.8},
-                       {"taken_at": "2026-09-07T03:00:40Z", "lng": -97.0730, "lat": 47.9229}]
+            import datetime as _dt
+            t0 = _dt.datetime.now(_dt.timezone.utc)
+            samples = [{"taken_at": (t0 - _dt.timedelta(seconds=40)).isoformat(), "lng": -97.0731, "lat": 47.9229, "accuracy_m": 6.5, "battery": 80},
+                       {"taken_at": (t0 - _dt.timedelta(seconds=20)).isoformat(), "lng": -97.0730, "lat": 47.9229, "accuracy_m": 5.8},
+                       {"taken_at": t0.isoformat(), "lng": -97.0730, "lat": 47.9229}]
             r = jordan.rpc("location_upload", idempotency_key=k(), shift_id=shift, samples=samples)
             check("location_upload accepts 2 rejects 1", r.get("ok") and r["data"]["accepted"] == 2 and r["data"]["rejected"] == 1, str(r)[:160])
             loc_now = {"lng": -97.0731, "lat": 47.9229, "accuracy_m": 6.5, "taken_at": jordan.q("select now()")[0][0].isoformat()}
@@ -289,6 +291,7 @@ def main():
             check("admin flags away game on purpose", r.get("ok") and chad.q("select count(*) from public.event_reminders where event_id='ath:smoke_ics_2'")[0][0] == 10)
         # force one reminder due and raise it
         conn.execute("update public.event_reminders set due_on = current_date where event_id='ath:smoke_ics_2' and days_before=30")
+        conn.execute("delete from public.outbox where event_type='event_reminder' and payload->>'event_id'='ath:smoke_ics_2'")
         conn.execute("select public.events_tick()")
         rid = conn.execute("select id from public.event_reminders where event_id='ath:smoke_ics_2' and days_before=30 and raised_at is not null").fetchone()
         check("tick raises the due reminder once", rid is not None and conn.execute("select count(*) from public.outbox where event_type='event_reminder' and payload->>'event_id'='ath:smoke_ics_2'").fetchone()[0] == 1)

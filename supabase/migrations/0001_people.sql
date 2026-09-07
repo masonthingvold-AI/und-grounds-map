@@ -1,9 +1,10 @@
 -- 0001 People, crews, helpers, idempotency log
 -- See docs/api-contract.md sections 1 and 2, docs/adr-001-architecture.md decisions 2 and 14.
 
-create extension if not exists postgis;
-create extension if not exists pgcrypto;
-create extension if not exists btree_gist;
+-- extensions live in the extensions schema so PostGIS functions are not exposed through the API (tools/audit.py checks)
+create extension if not exists postgis with schema extensions;
+create extension if not exists pgcrypto with schema extensions;
+create extension if not exists btree_gist with schema extensions;
 
 -- ---------- error helper ----------
 -- Every function raises through this so the client always sees GRND-<code>: <text> with JSON details.
@@ -65,12 +66,12 @@ create index crew_placements_profile_idx on public.crew_placements(profile_id, s
 
 -- ---------- caller helpers ----------
 create or replace function public.auth_profile_id() returns uuid
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = public, extensions as $$
   select id from public.profiles where id = auth.uid() and active
 $$;
 
 create or replace function public.auth_role() returns text
-language plpgsql stable security definer set search_path = public as $$
+language plpgsql stable security definer set search_path = public, extensions as $$
 declare r text;
 begin
   select app_role into r from public.profiles where id = auth.uid() and active;
@@ -79,13 +80,13 @@ begin
 end $$;
 
 create or replace function public.is_admin() returns boolean
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = public, extensions as $$
   select coalesce((select app_role in ('admin') from public.profiles where id = auth.uid() and active), false)
 $$;
 
 -- crews the caller belongs to right now (home crew plus active placements)
 create or replace function public.my_crew_ids() returns uuid[]
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = public, extensions as $$
   select coalesce(array_agg(distinct c), '{}')
   from (
     select crew_id c from public.profiles where id = auth.uid() and crew_id is not null
@@ -97,7 +98,7 @@ $$;
 
 -- can the caller see or direct this person? admin and oversight: anyone. lead: own crew. worker: self.
 create or replace function public.can_see_profile(target uuid) returns boolean
-language plpgsql stable security definer set search_path = public as $$
+language plpgsql stable security definer set search_path = public, extensions as $$
 declare r text;
 begin
   if target = auth.uid() then return true; end if;
@@ -126,7 +127,7 @@ create index command_log_created_idx on public.command_log(created_at);
 
 -- Returns the stored result if this key was already used by the same caller and function, else null.
 create or replace function public.idem_check(key uuid, fn_name text) returns jsonb
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 declare row_ record;
 begin
   if key is null then perform public.grnd_error(422, 'idempotency_key is required', '{"fields":["idempotency_key"]}'); end if;
@@ -139,7 +140,7 @@ begin
 end $$;
 
 create or replace function public.idem_store(key uuid, fn_name text, result jsonb) returns jsonb
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 begin
   insert into public.command_log(idempotency_key, fn, caller, result) values (key, fn_name, auth.uid(), result);
   return result;

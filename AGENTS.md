@@ -19,6 +19,9 @@ data/parcels.geojson    every parcel the City of Grand Forks lists andowned by U
 data/boundary.geojson   hand drawn lines: the campus edge (kind=campus, everything outside it is dimmed), zones, crew areas, keep-out and sprayedeme an, flower beds
 tools/serve.py          local server so an iPad or phone on the same Wi-Fi can open the map and save straight back into data/
 tools/make_boundary.py  builds a starting campus box from the parcels; Mason redraws it by hand
+tools/extract_mowing_map.py  lifts the colored areas out of the 2025 mowing map PDF into data/overlays/ (the map's Edit mode overlays the drawing and imports them)
+tools/audit.py          security audit against the live project: RLS, grants, function allow list, direct writes, storage, cron
+data/overlays/          the mowing map drawing (png) and its colored regions (json, pixel coordinates); imported through the map, never hand edited
 data/bundle.js          GENERATED from the files above by tools/build.py. Never hand edit.
 tools/build.py          rebuilds data/bundle.js and validates the geojson
 tools/seed_data.py      the original placeholder data. Do not re-run once real shapes exist.

@@ -66,7 +66,7 @@ $$;
 
 -- upsert a page of Localist events (service role from the sync job, or an admin pasting JSON)
 create or replace function public.events_upsert(payload jsonb) returns jsonb
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 declare e jsonb; ev jsonb; inst jsonb; n int := 0; pt geometry; nz_zone text; auto text; is_new boolean; watched boolean; sa timestamptz; ea timestamptz;
 begin
   if auth.uid() is not null and not public.is_admin() then perform public.grnd_error(403, 'Only admins load events'); end if;
@@ -107,7 +107,7 @@ end $$;
 
 -- (re)build the reminder ladder for one event; reminders exist only while the event is watched
 create or replace function public.event_reminders_plan(p_event bigint) returns void
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 declare ev record; d int;
 begin
   select * into ev from public.campus_events where id = p_event;
@@ -125,7 +125,7 @@ end $$;
 
 -- a lead or admin decides an event needs planning (or not) and can attach notes and a work order
 create or replace function public.event_watch(idempotency_key uuid, event_id bigint, watch boolean, reason text default null, notes text default null, work_order_id uuid default null)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare prior jsonb; r text; ev record;
 begin
   prior := public.idem_check(idempotency_key, 'event_watch'); if prior is not null then return prior; end if;
@@ -140,7 +140,7 @@ begin
 end $$;
 
 create or replace function public.event_reminder_ack(idempotency_key uuid, reminder_id uuid)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare prior jsonb; r text;
 begin
   prior := public.idem_check(idempotency_key, 'event_reminder_ack'); if prior is not null then return prior; end if;
@@ -152,7 +152,7 @@ end $$;
 
 -- daily: raise every reminder that is due, as a broadcast on 'all' (push later reuses the same event type)
 create or replace function public.events_tick() returns jsonb
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 declare rem record; n int := 0; label text;
 begin
   for rem in select r.*, e.title, e.starts_at, e.venue_name, e.zone_id from public.event_reminders r join public.campus_events e on e.id = r.event_id

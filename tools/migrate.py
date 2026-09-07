@@ -26,7 +26,9 @@ def env():
 def connect():
     e = env()
     ref, pw = e["SUPABASE_PROJECT_REF"], urllib.parse.quote(e["SUPABASE_DB_PASSWORD"])
-    return psycopg.connect(f"postgresql://postgres:{pw}@db.{ref}.supabase.co:5432/postgres?sslmode=require", autocommit=False)
+    conn = psycopg.connect(f"postgresql://postgres:{pw}@db.{ref}.supabase.co:5432/postgres?sslmode=require", autocommit=False)
+    conn.execute("set search_path = public, extensions"); conn.commit()   # PostGIS lives in extensions; migrations and tools resolve geometry through this path
+    return conn
 
 def ensure_table(conn):
     conn.execute("""create table if not exists public.schema_migrations (

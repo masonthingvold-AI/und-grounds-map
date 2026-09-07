@@ -1,7 +1,7 @@
 -- 0009 Realtime: outbox rows become private broadcasts; row changes on four tables are published. docs/api-contract.md section 10.
 
 -- outbox -> broadcast. Runs after commit of the row that wrote the outbox entry (same transaction), so a message always matches a committed change.
-create or replace function public.outbox_broadcast() returns trigger language plpgsql security definer set search_path = public as $$
+create or replace function public.outbox_broadcast() returns trigger language plpgsql security definer set search_path = public, extensions as $$
 begin
   perform realtime.send(new.payload || jsonb_build_object('outbox_id', new.id), new.event_type, new.topic, true);
   update public.outbox set delivered_at = now() where id = new.id;
