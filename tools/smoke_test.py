@@ -261,6 +261,45 @@ def main():
             check("second confirm -> GRND-410", sam.rpc("time_entries_confirm", idempotency_key=k(), shift_id=sshift, entries=entries).get("error") == "GRND-410")
         with As(conn, ids["chad"]) as chad:
             chad.rpc("task_cancel", idempotency_key=k(), task_id=task3, reason="test cleanup")
+        # 7 campus events (migration 0012): ICS parsing edge cases, watch persistence across resync, reminders, ack
+        ics = ("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:smoke_ics_1\r\nDTSTART:20991010T230700Z\r\nDTEND:20991011T013000Z\r\n"
+               "LOCATION:Grand Forks\\, N.D.\\, Ralph Engelstad Arena\r\nSUMMARY:[W] University of North Dakota  Men's Hockey vs Smoke Test\r\n  (Exh.)\r\n"
+               "URL:https://example.invalid/calendar.aspx?game_id=1&amp;sport_id=9\r\nEND:VEVENT\r\n"
+               "BEGIN:VEVENT\r\nUID:smoke_ics_2\r\nDTSTART;VALUE=DATE:20991012\r\nDTEND;VALUE=DATE:20991013\r\nLOCATION:Fargo\\, N.D.\r\n"
+               "SUMMARY:University of North Dakota  Football at NDSU\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")
+        with As(conn, ids["chad"]) as chad:
+            r = chad.rpc("events_upsert_ics", payload=ics, p_source="ath")
+            check("ics parse two events", r.get("ok") and r["data"]["events"] == 2, str(r)[:120])
+            row = chad.q("select title, sport, home, venue_name, on_campus, watch, url, to_char(starts_at at time zone 'America/Chicago','HH24:MI') from public.campus_events where id='ath:smoke_ics_1'")[0]
+            check("ics folded line, escaped commas, venue, home, url", row[0] == "Men's Hockey vs Smoke Test (Exh.)" and row[1] == "Men's Hockey" and row[2] is True and row[3] == "Ralph Engelstad Arena" and row[4] is True and row[5] is True and "&sport_id=9" in row[6] and row[7] == "18:07", str(row))
+            row = chad.q("select home, all_day, watch, starts_at::date from public.campus_events where id='ath:smoke_ics_2'")[0]
+            check("ics all-day away game not watched", row[0] is False and row[1] is True and row[2] is False, str(row))
+            check("reminder ladder planned for watched event", chad.q("select count(*) from public.event_reminders where event_id='ath:smoke_ics_1'")[0][0] == 10)
+            check("no reminders for unwatched", chad.q("select count(*) from public.event_reminders where event_id='ath:smoke_ics_2'")[0][0] == 0)
+        with As(conn, ids["jordan"]) as jordan:
+            check("worker cannot flag events", jordan.rpc("event_watch", idempotency_key=k(), event_id="ath:smoke_ics_1", watch=False).get("error") == "GRND-403")
+        with As(conn, ids["lead"]) as lead:
+            r = lead.rpc("event_watch", idempotency_key=k(), event_id="ath:smoke_ics_1", watch=False, reason="not our lot")
+            check("lead clears watch", r.get("ok") and r["data"]["watch"] is False, str(r)[:120])
+            check("clearing watch drops pending reminders", lead.q("select count(*) from public.event_reminders where event_id='ath:smoke_ics_1' and raised_at is null")[0][0] == 0)
+        with As(conn, ids["chad"]) as chad:
+            chad.rpc("events_upsert_ics", payload=ics, p_source="ath")
+            check("person's decision survives resync", chad.q("select watch, watch_reason from public.campus_events where id='ath:smoke_ics_1'")[0] == (False, "not our lot"))
+            r = chad.rpc("event_watch", idempotency_key=k(), event_id="ath:smoke_ics_2", watch=True, notes="parking overflow")
+            check("admin flags away game on purpose", r.get("ok") and chad.q("select count(*) from public.event_reminders where event_id='ath:smoke_ics_2'")[0][0] == 10)
+        # force one reminder due and raise it
+        conn.execute("update public.event_reminders set due_on = current_date where event_id='ath:smoke_ics_2' and days_before=30")
+        conn.execute("select public.events_tick()")
+        rid = conn.execute("select id from public.event_reminders where event_id='ath:smoke_ics_2' and days_before=30 and raised_at is not null").fetchone()
+        check("tick raises the due reminder once", rid is not None and conn.execute("select count(*) from public.outbox where event_type='event_reminder' and payload->>'event_id'='ath:smoke_ics_2'").fetchone()[0] == 1)
+        conn.execute("select public.events_tick()")
+        check("second tick does not re-raise", conn.execute("select count(*) from public.outbox where event_type='event_reminder' and payload->>'event_id'='ath:smoke_ics_2'").fetchone()[0] == 1)
+        with As(conn, ids["lead"]) as lead:
+            check("reminder open in view", lead.q("select open from public.v_event_reminders where reminder_id=%s", rid[0])[0][0] is True)
+            r = lead.rpc("event_reminder_ack", idempotency_key=k(), reminder_id=rid[0])
+            check("lead acknowledges", r.get("ok") is True and lead.q("select open from public.v_event_reminders where reminder_id=%s", rid[0])[0][0] is False)
+            check("second ack -> GRND-410", lead.rpc("event_reminder_ack", idempotency_key=k(), reminder_id=rid[0]).get("error") == "GRND-410")
+        conn.execute("delete from public.campus_events where id like 'ath:smoke_ics_%'")
         conn.commit()
     print(f"\n{sum(results)}/{len(results)} checks passed")
     sys.exit(0 if all(results) else 1)

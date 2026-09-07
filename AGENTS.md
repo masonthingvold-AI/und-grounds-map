@@ -32,7 +32,7 @@ docs/technical-blueprint-codex-v0.2.md  Codex's blueprint (reference; Codex comm
 docs/api-contract.md    THE client contract: functions, views, errors, offline rules, realtime. Codex builds against this and nothing else.
 docs/api-contract-changes.md  where to propose a contract change before building on it
 docs/supabase-setup.md  how the Supabase project is configured and the commands to migrate, seed, test, reset
-supabase/migrations/    the database, numbered SQL files, applied by tools/migrate.py (Claude's area per the ADR)
+supabase/migrations/    the database, numbered SQL files, applied by tools/migrate.py (Claude's area per the ADR). 0011 pulls calendar.und.edu daily with pg_cron
 tools/migrate.py        apply migrations to the project in .env
 tools/seed_supabase.py  load data/*.geojson into zones (versioned) and assets
 tools/smoke_test.py     end to end test with synthetic users
