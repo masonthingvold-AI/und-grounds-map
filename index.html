@@ -68,6 +68,7 @@
   .pdot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);margin-right:6px}
   .pdot.stale{background:#F2B134;box-shadow:none}
   .lbl.person{color:#fff;text-shadow:0 0 3px #1a73e8,0 0 3px #1a73e8}
+  .lbl.area.tiny, #map.labels-off .lbl.area{display:none}
   .eq{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);align-items:flex-start}
   .eq:last-child{border-bottom:0}
   .eq .ph{width:64px;height:64px;border-radius:8px;background:var(--bg) center/cover no-repeat;flex:none;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px}
@@ -303,6 +304,7 @@
   }
 
   // ------------------------------------------------------------- layers
+  window.und = {map};    // handle for the console and for alignment scripts
   const groups = {};      // layerKey -> L.FeatureGroup
   const index = [];       // searchable list of {layerKey, feature, leafletLayer}
   let selected = null;
@@ -310,6 +312,35 @@
   const SITES = config.sites || [{id:"main",label:"Main campus"}];
   const ENUMS = config.enums || {};
   let siteFilter = ""; try{ siteFilter = localStorage.getItem("und-grounds-site") || ""; }catch(e){}
+  // area labels: "names" (UND Green Space 106), "numbers" (106), or "off"; a label also hides itself when the shape is smaller than the text
+  let labelMode = "numbers"; try{ labelMode = localStorage.getItem("und-grounds-labels") || "numbers"; }catch(e){}
+  function labelText(f){
+    const name = f.properties.name || f.properties.id || "";
+    if(labelMode !== "numbers") return name;
+    const m = name.match(/(\d+)\s*$/); if(m) return m[1];
+    const idm = (f.properties.id||"").match(/(\d+)$/); return idm ? String(+idm[1]) : name;
+  }
+  function areaTooltip(lyr, f){ lyr.bindTooltip(labelText(f), {permanent:true, direction:"center", className:"lbl area", interactive:false}); }
+  function fitLabels(){
+    document.getElementById("map").classList.toggle("labels-off", labelMode === "off");
+    if(labelMode === "off") return;
+    index.forEach(it => {
+      const t = it.layer.getTooltip && it.layer.getTooltip(); if(!t || !it.layer.getBounds) return;
+      const el = t.getElement(); if(!el) return;
+      const b = it.layer.getBounds(); if(!b.isValid()) return;
+      const a = map.latLngToLayerPoint(b.getNorthWest()), c = map.latLngToLayerPoint(b.getSouthEast());
+      const w = Math.abs(c.x - a.x), h = Math.abs(c.y - a.y);
+      el.classList.remove("tiny"); const need = el.offsetWidth + 6;
+      if(w < need || h < 13) el.classList.add("tiny");
+    });
+  }
+  function setLabelMode(m){
+    labelMode = m; try{ localStorage.setItem("und-grounds-labels", m); }catch(e){}
+    index.forEach(it => { const t = it.layer.getTooltip && it.layer.getTooltip(); if(t && t.options.permanent && it.layer.getBounds) t.setContent(labelText(it.feature)); });
+    fitLabels();
+  }
+  let lblTimer = null; const fitSoon = () => { clearTimeout(lblTimer); lblTimer = setTimeout(fitLabels, 60); };
+  map.on("zoomend layeradd", fitSoon);
   function buildLayer(key){
     const fc = {type:"FeatureCollection", features: layersData[key].features.filter(f => !siteFilter || (f.properties.site||"main")===siteFilter)};
     const g = groups[key] || L.featureGroup();
@@ -328,7 +359,7 @@
         lyr._layerKey = key;
         lyr.on("click", e => { L.DomEvent.stop(e); select(key, f, lyr); });
         if((key==="mowing_areas" || (key==="boundary" && f.properties.kind!=="campus")) && f.geometry.type!=="Point"){
-          lyr.bindTooltip(f.properties.name, {permanent:true, direction:"center", className:"lbl"});
+          areaTooltip(lyr, f);
         } else {
           lyr.bindTooltip(f.properties.name, {sticky:true});
         }
@@ -354,6 +385,7 @@
     updateMask();
     if(typeof renderDetail==="function"){ renderDetail(); renderResults(); }
     if(editMode && drawControl) attachDraw();
+    fitSoon();
   }
   const siteSel = document.getElementById("siteFilter");
   siteSel.innerHTML = `<option value="">All sites</option>` + SITES.map(x=>`<option value="${x.id}" ${x.id===siteFilter?"selected":""}>${x.label}</option>`).join("");
@@ -371,6 +403,14 @@
     });
     toggles.appendChild(row);
   }
+  {
+    const row = document.createElement("div"); row.className = "field"; row.style.marginTop = "8px";
+    row.innerHTML = `<label>Area labels</label><select id="labelMode"><option value="numbers">Numbers only</option><option value="names">Full names</option><option value="off">Off</option></select>`;
+    row.querySelector("select").value = labelMode;
+    row.querySelector("select").addEventListener("change", e => setLabelMode(e.target.value));
+    toggles.appendChild(row);
+  }
+  fitSoon();
 
   updateMask();
   map.on(L.Draw.Event.EDITED, updateMask);
@@ -680,7 +720,7 @@
     layersData[key].features.push(gj);
     lyr.feature = gj; lyr._layerKey = key;
     lyr.on("click", ev => { L.DomEvent.stop(ev); select(key, gj, lyr); });
-    lyr.bindTooltip(name, key==="mowing_areas" && gj.geometry.type!=="Point" ? {permanent:true, direction:"center", className:"lbl"} : {sticky:true});
+    if(key==="mowing_areas" && gj.geometry.type!=="Point") areaTooltip(lyr, gj); else lyr.bindTooltip(name, {sticky:true});
     if(lyr.setStyle) lyr.setStyle(styleFor(key, gj));
     groups[key].addLayer(lyr);
     index.push({layerKey:key, feature:gj, layer:lyr});
