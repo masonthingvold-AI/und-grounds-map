@@ -1,5 +1,7 @@
 # UND Grounds Operations Platform, technical blueprint v0.1
 
+> Status: reference only. The accepted architecture is `docs/adr-001-architecture.md`, which corrects this document on background GPS, zone versioning, the hash chain, storage immutability, retention, migration ordering, partition keys, seeded policy thresholds, and weather automation. Read the ADR first.
+
 Date: September 6, 2026
 For: Mason, Chad, Bobby, and whoever builds alongside Claude and ChatGPT
 Scope: the shared, multi-user system that grows out of the current map. Landscaping operations in summer, snow and ice operations in winter, one codebase, one database, one switch.
@@ -155,7 +157,7 @@ create table zone_status (                            -- live state per zone per
   event_id uuid references weather_events(id)         -- which storm this status belongs to
 );
 
-create table keepouts (                               -- sprayed areas and temporary hazards, self expiring
+create table keepouts (                               -- sprayedeme andand temporary hazards, self expiring
   id uuid primary key, zone_id text references zones(id), geom geometry(Polygon,4326),
   kind text not null check (kind in ('sprayed','hazard','closed')),
   product text, applied_by uuid references profiles(id), starts_at timestamptz not null,
@@ -503,5 +505,5 @@ Each phase ships something the crew uses. No phase depends on hardware, procurem
 1. The reporting tree and Bobby's scope (from the product brief).
 2. The exact student hour cap and the source policy.
 3. Which spreaders are on which units and their pounds-per-mile settings, so material quantities are real.
-4. Whether Facilities has an ArcGIS account with campus layers we can load instead of tracing.
+4. Whether Facilities handan ArcGIS account with campus layers we can load instead of tracing.
 5. Who at UND legal or risk management wants the proof-of-service report format reviewed.
