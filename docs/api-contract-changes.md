@@ -68,3 +68,10 @@ Reason: Mason explicitly instructed the client not to send any hash. Section 7 r
 Proposed shape: server-register an original upload without client hash, compute and verify its digest server-side, then finalize by authorized evidence IDs. Publish the exact contract and readiness state. Until then originals stay in owner-scoped local drafts and upload/finalization with photos is disabled.
 
 Verification constraint: automatic approval review rejected creating persistent synthetic tasks, shifts and location records on the live project. Those test writes did not run. UI implementation, isolated unit tests and read-only checks continue; explicit approval for a labeled, bounded live fixture and cleanup is needed to execute mutation verification.
+
+## 2026-09-07, Codex follow-up after main 1534ac1
+Status: proposed
+- Evidence remains blocked: section 7 requires sha256 while Mason explicitly forbids sending any hash. The new hardening migration also requires a minimum object size of 20 KB; publish that limit in section 7.
+- Main now intentionally has no campus boundary or snow-route placeholders. The campus-only view displays a missing-boundary state rather than restoring removed geometry or showing distant city parcels.
+- Section 2 says discard another user's queue, but section 10 rule 9 says quarantine. Client follows rule 9: retains owner-specific commands and drafts, never exposes them to another account.
+- Approval is lead/admin only in section 7.4; oversight board omits approval while allowing dispatch actions.

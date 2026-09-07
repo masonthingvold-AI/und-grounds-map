@@ -10,7 +10,7 @@ import {load,save} from './store.mjs';
 import {taskCards,taskDetail,fieldError} from './worker.mjs';
 import {client,login,signOut,readView,rpc} from './api.mjs';
 import {mountShell} from './shell.mjs';
-import {showMap,clearMap,showMessages,dashboard} from './views.mjs';
+import {showMap,clearMap,showMessages,dashboard,showLiveZone} from './views.mjs';
 const $=s=>document.querySelector(s),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let me=null,shift=null,mode={},route='day',tasks=[],shell,epoch=0,tracker,dayLog,queue,locations,replayTimer,read=readView,pollTimer;
 const canDispatch=()=>['lead','admin','oversight'].includes(me?.app_role);
@@ -25,20 +25,20 @@ async function enter(){
  $('.g-account p').textContent=me.full_name;
  $('.g-demo').textContent='Connected to UND Grounds · Provisioned test environment';
  const owner=me.id;read=cachedReader({owner,currentOwner:()=>me?.id,load,save,read:readView,notify});
- const send=async(fn,args)=>{if(!navigator.onLine)throw Object.assign(Error('Waiting for a connection.'),{code:'NETWORK',retryable:true});const {data:{session}}=await client.auth.getSession();if(session?.user.id!==owner)throw Object.assign(Error('Sign in again to synchronize your work.'),{code:'401'});return rpc(fn,args);};
- queue=await new CommandQueue({owner,load,save,send,currentOwner:()=>me?.id,changed:error=>{if(error)showError(error);else if(me?.id===owner)updateShell();},completed:async item=>{if(item.fn==='time_entries_confirm'){await save(owner,'day-log',null);if(me?.id===owner)dayLog=null;}if(item.fn==='shift_end'){await save(owner,'day-log',item.result.data.day_log);if(me?.id===owner)dayLog=item.result.data.day_log;}if(me?.id===owner)await refresh();}}).init();
+ const send=async(fn,args)=>{if(!navigator.onLine)throw Object.assign(Error('Waiting for a connection.'),{code:'NETWORK',retryable:true});const {data:{session}}=await client.auth.getSession();if(session?.user.id!==owner)throw Object.assign(Error('Sign in again to synchronize your work.'),{code:'401'});try{return await rpc(fn,args);}catch(error){if(fn==='shift_start'&&error.code==='GRND-410'){const [existing]=await readView('v_my_shift');if(existing?.shift_id)return {ok:true,data:existing,adopted:true};}throw error;}};
+ queue=await new CommandQueue({owner,load,save,send,currentOwner:()=>me?.id,changed:error=>{if(error)showError(error);else if(me?.id===owner)updateShell();},completed:async item=>{if(item.fn==='shift_start'&&me?.id===owner){await refresh();tracker.start();}if(item.fn==='time_entries_confirm'){await save(owner,'day-log',null);if(me?.id===owner)dayLog=null;}if(item.fn==='shift_end'){await save(owner,'day-log',item.result.data.day_log);if(me?.id===owner)dayLog=item.result.data.day_log;}if(me?.id===owner)await refresh();}}).init();
  locations=await new LocationQueue({owner,load,save,send,currentOwner:()=>me?.id,notify}).init();
  tracker=new ShiftTracker({read:read,owner,notify,onUpdate:async()=>{await refresh();updateShell();},send:(shift_id,samples)=>locations.add(shift_id,samples)});
  replayTimer=setInterval(()=>{queue.flush().catch(showError);locations.flush().catch(showError);},5000);
 
- await refresh();dayLog=await load(me.id,'day-log');await render();queue.flush().catch(showError);locations.flush().catch(showError);pollTimer=setInterval(async()=>{if(!me||document.hidden)return;try{await refresh();updateShell();if(['day','dispatch'].includes(route)&&!$('#detail').open&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))await render();}catch(e){showError(e);}},60000);
+ await refresh();dayLog=await load(me.id,'day-log');await render();if(shift&&me.app_role!=='oversight')notify('Your open shift is restored. Enable foreground location to resume tracking.');queue.flush().catch(showError);locations.flush().catch(showError);pollTimer=setInterval(async()=>{if(!me||document.hidden)return;try{await refresh();updateShell();if(['day','dispatch'].includes(route)&&!$('#detail').open&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))await render();}catch(e){showError(e);}},60000);
 }
 async function refresh(){const values=await Promise.all([read('v_my_shift'),read('v_operating_state')]);shift=values[0][0]||null;mode=values[1][0]||{};await tracker?.update(shift);}
 function showError(e){if(['401','GRND-401'].includes(e.code)){signOut();loginScreen('Your session ended. Sign in again.');}else notify(e.message);}
 async function act(fn,args,meta={}){const item=await queue.add(fn,args,meta);if(item.status==='done'){await refresh();await render();return item.result;}if(item.status==='validation'||item.status==='review')throw Object.assign(Error(item.error.message),item.error);notify('Action saved on this device. It will synchronize when connected.');return {pending:true};}
 const onLocation=async location=>{if(!shift)throw Error('Start your shift before starting work.');return tracker.capture(location);};
 async function shiftAction(){try{
- if(shift){tracker.stop();const result=await act('shift_end',{shift_id:shift.shift_id});if(result.pending){notify('Shift end is queued after your pending work.');return;}dayLog=result.data.day_log;await save(me.id,'day-log',dayLog);route='day-log';await render();}
+ if(shift){tracker.stop();await tracker.flushSamples();const result=await act('shift_end',{shift_id:shift.shift_id});if(result.pending){notify('Shift end is queued after your pending work.');return;}dayLog=result.data.day_log;await save(me.id,'day-log',dayLog);route='day-log';await render();}
  else{try{await act('shift_start',{device_id:'grounds-web'});}catch(e){if(e.code!=='GRND-410')throw e;await refresh();}tracker.start();await render();}
 }catch(e){showError(e);}}
 async function render(){
@@ -52,6 +52,8 @@ async function render(){
  if(route==='day-log'&&dayLog){await showDayLog(target,dayLog,{owner:me.id,act,onDone:()=>{dayLog=null;route='day';render();}});return;}
  if(route==='queue'){showQueue(target,queue,{review:id=>taskDetail(id,{read:async(...args)=>overlayTasks(await read(...args),queue.items),act,me,onLocation,proof:task=>showProof(task,{owner:me.id})})});return;}
  if(route==='settings'){target.innerHTML=`<h1>Your account</h1><article class="card"><h2>${esc(me.full_name)}</h2><p>${esc(me.app_role)} · ${esc(me.crew_name||'No crew')}</p><p class="muted">Signed in through Supabase Auth. Session refresh is automatic.</p></article>`;return;}
+ if(route==='status'){const rows=await read(canDispatch()?'v_dispatch_board':'v_my_day');await showLiveZone(target,{read,tasks:rows,openTask:id=>taskDetail(id,{read,act,me,onLocation,proof:task=>showProof(task,{owner:me.id})}),ask:text=>{route='crew-lead';render().then(()=>showMessages($('#content'),true,text,me.id));}});return;}
+ if(route==='assets'){const assets=await read('v_assets');target.innerHTML=`<h1>Assets</h1><div class=live-list>${assets.map(a=>`<article class=card><h2>${esc(a.name)}</h2><p>${esc(a.class)} · ${esc(a.status)}</p><p>${a.reserved_by_name?'Reserved by '+esc(a.reserved_by_name):'No current reservation'}</p></article>`).join('')||'<p>No active assets are published yet.</p>'}</div>`;return;}
  if(route==='map'){await showMap(target);return;}
  if(['messages','crew-lead'].includes(route)){showMessages(target,route==='crew-lead','',me.id);return;}
  if(route==='day'){

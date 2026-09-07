@@ -5,6 +5,7 @@ export class ShiftTracker{
  async update(shift){this.shift=shift;if(!shift)this.stop();}
  start(){if(this.enabled||!this.shift)return;this.enabled=true;this.tick();this.timer=setInterval(()=>this.tick(),30000);}
  stop(){this.enabled=false;clearInterval(this.timer);this.timer=null;}
+ async flushSamples(){if(this.samples.length&&this.shift){const samples=this.samples;this.samples=[];await this.send(this.shift.shift_id,samples);}}
  async capture(location){if(!this.shift)throw Error('Start your shift first.');await this.send(this.shift.shift_id,[{...location,source:'gps'}]);}
  async tick(){if(!this.enabled||!this.shift||document.hidden||this.busy)return;this.busy=true;try{const location=await getLocation();if(!this.enabled||!this.shift||document.hidden)return;this.samples.push({...location,source:'gps'});if(!this.lastSent||Date.now()-this.lastSent>=60000){await this.send(this.shift.shift_id,this.samples);this.samples=[];this.lastSent=Date.now();await this.onUpdate();}}catch(e){this.notify(e.message);}finally{this.busy=false;}}
 }

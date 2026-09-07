@@ -2,6 +2,7 @@ const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;
 export const remainingInZone=(tasks,id)=>tasks.filter(t=>t.zone_id===id&&!['done','canceled'].includes(t.state));
 const points=coordinates=>typeof coordinates[0]==='number'?[coordinates]:coordinates.flatMap(points);
 export const campusParcels=(features,boundary)=>{
+ if(!boundary?.geometry)return [];
  const extent=points(boundary.geometry.coordinates),xs=extent.map(p=>p[0]),ys=extent.map(p=>p[1]);
  return features.filter(f=>f.properties.site==='main'&&f.properties.owner_class==='und_state'&&points(f.geometry.coordinates).some(([x,y])=>x>=Math.min(...xs)&&x<=Math.max(...xs)&&y>=Math.min(...ys)&&y<=Math.max(...ys)));
 };
@@ -17,7 +18,7 @@ function mapInto(element,features){
 }
 export async function showMap(target){
  target.innerHTML='<p class="eyebrow">Your campus</p><h1>UND campus</h1><p class="muted">UND state-owned campus parcels. City streets and surrounding property are not shown. Parcel outlines are not the final grounds service boundary.</p><div id="campus-focus" class="focus-map" aria-label="UND campus parcel map"></div><p class="muted">Source: City of Grand Forks parcel inventory. Campus service boundary still needs tracing.</p>';
- try{const [parcels,,,boundary]=await data();if(!target.querySelector('#campus-focus'))return;mapInto(target.querySelector('#campus-focus'),campusParcels(parcels.features,boundary.features.find(f=>f.properties.kind==='campus')));}catch(e){target.textContent=e.message;}
+ try{const [parcels,,,boundary]=await data();if(!target.querySelector('#campus-focus'))return;const campus=boundary.features.find(f=>f.properties.kind==='campus');if(!campus){target.querySelector('#campus-focus').textContent='The campus boundary is being updated. This view will appear when the boundary is saved.';return;}mapInto(target.querySelector('#campus-focus'),campusParcels(parcels.features,campus));}catch(e){target.textContent=e.message;}
 }
 export async function showZone(target,tasks,openTask,ask){
  const zones=[...new Map(tasks.map(t=>[t.zone_id,t.zone_name])).entries()];
@@ -53,4 +54,16 @@ export function promptShift(start){
  document.body.append(dialog);dialog.querySelector('#arrival-later').onclick=()=>{dialog.close();dialog.remove();};
  dialog.querySelector('#arrival-start').onclick=()=>{dialog.querySelector('#arrival-auth').innerHTML='<h2>Confirm it is you</h2><p>Face ID sign-in is planned. This preview cannot authenticate with Face ID or clock you into a real shift.</p><button disabled>Face ID not connected</button><button id="preview-entry" class="primary">Continue with test shift</button>';dialog.querySelector('#arrival-start').hidden=true;dialog.querySelector('#preview-entry').onclick=async()=>{await start();dialog.close();dialog.remove();};};
  dialog.showModal();
+}
+
+export async function showLiveZone(target,{read,tasks,openTask,ask}){
+ const zones=[...new Map(tasks.map(t=>[t.zone_id,t.zone_name])).entries()];
+ target.innerHTML=`<h1>Zone status</h1><label for="live-zone">Zone</label><select id="live-zone">${zones.map(([id,name])=>`<option value="${esc(id)}">${esc(name)}</option>`).join('')}</select><div id="live-zone-content"></div>`;
+ if(!zones.length){target.querySelector('#live-zone-content').textContent='No zones with visible assignments.';return;}
+ const select=target.querySelector('select');let generation=0;
+ async function draw(){const current=++generation;clearMap();const remaining=remainingInZone(tasks,select.value),body=target.querySelector('#live-zone-content');body.innerHTML=`<div class="zone-layout"><div><div class="focus-map small" id="saved-zone"></div><p class="muted">Showing the zone version saved with this assignment. New mapping work does not rewrite an existing assignment.</p></div><section><h2>${remaining.length} tasks left</h2>${remaining.map(t=>`<article class="card"><h3>${esc(t.outcome)}</h3><p>${esc(t.state)}</p><button data-task="${esc(t.task_id)}">View task</button></article>`).join('')}<h2>Other ways to help</h2><p class="muted">Ask your crew lead before changing assignments.</p>${['Report a hazard','Check for litter or obstructions','Ask for another task'].map(text=>`<button class="suggestion">${text}</button>`).join('')}</section></div>`;
+ body.querySelectorAll('[data-task]').forEach(b=>b.onclick=()=>openTask(b.dataset.task));body.querySelectorAll('.suggestion').forEach(b=>b.onclick=()=>ask(b.textContent+' · '+select.selectedOptions[0].textContent));
+ try{const [detail]=remaining.length?await read('v_task_detail',{task_id:remaining[0].task_id}):[];if(current!==generation||!body.isConnected)return;if(detail?.zone_geom)mapInto(body.querySelector('#saved-zone'),[{type:'Feature',geometry:detail.zone_geom,properties:{name:detail.zone_name}}]);else body.querySelector('#saved-zone').textContent='No saved zone geometry is available.';}catch(e){if(body.isConnected)body.querySelector('#saved-zone').textContent=e.message;}
+ }
+ select.onchange=draw;await draw();
 }
