@@ -119,7 +119,7 @@ language sql immutable as $$
 $$;
 
 create or replace function public.event_reminders_plan(p_event text) returns void
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 declare ev record; d int;
 begin
   select * into ev from public.campus_events where id = p_event;
@@ -137,7 +137,7 @@ create or replace function public.event_put(
   p_source text, p_external_id text, p_title text, p_url text, p_description text, p_sport text, p_home boolean,
   p_venue text, p_address text, p_location geometry, p_starts timestamptz, p_ends timestamptz, p_all_day boolean,
   p_first date, p_last date, p_audience text[], p_topics text[], p_raw jsonb) returns text
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 declare v public.event_venues; loc geometry; oncamp boolean; nz_zone text; auto text; id_ text; is_new boolean; watched boolean;
 begin
   id_ := p_source || ':' || p_external_id;
@@ -173,7 +173,7 @@ end $$;
 
 -- Localist JSON page
 create or replace function public.events_upsert(payload jsonb) returns jsonb
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 declare e jsonb; ev jsonb; inst jsonb; n int := 0; pt geometry; sa timestamptz; ea timestamptz;
 begin
   if auth.uid() is not null and not public.is_admin() then perform public.grnd_error(403, 'Only admins load events'); end if;
@@ -211,7 +211,7 @@ begin
 end $$;
 
 create or replace function public.events_upsert_ics(payload text, p_source text default 'ath') returns jsonb
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 declare body text; blk text; n int := 0; uid text; summary text; loc text; url text; sport text; home boolean; sa timestamptz; ea timestamptz; allday boolean; venue text; title text;
 begin
   if auth.uid() is not null and not public.is_admin() then perform public.grnd_error(403, 'Only admins load events'); end if;
@@ -241,7 +241,7 @@ end $$;
 
 -- ---------- people ----------
 create or replace function public.event_watch(idempotency_key uuid, event_id text, watch boolean, reason text default null, notes text default null, work_order_id uuid default null)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare prior jsonb; r text; ev record;
 begin
   prior := public.idem_check(idempotency_key, 'event_watch'); if prior is not null then return prior; end if;
@@ -256,7 +256,7 @@ begin
 end $$;
 
 create or replace function public.event_reminder_ack(idempotency_key uuid, reminder_id uuid)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare prior jsonb; r text; n int;
 begin
   prior := public.idem_check(idempotency_key, 'event_reminder_ack'); if prior is not null then return prior; end if;
@@ -270,7 +270,7 @@ end $$;
 
 -- ---------- daily jobs ----------
 create or replace function public.events_tick() returns jsonb
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 declare rem record; n int := 0; label text; stale record;
 begin
   for rem in select r.*, e.title, e.starts_at, e.venue_name, e.zone_id from public.event_reminders r join public.campus_events e on e.id = r.event_id

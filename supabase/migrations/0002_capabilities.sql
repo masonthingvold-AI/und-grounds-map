@@ -32,7 +32,7 @@ create trigger certifications_touch before update on public.certifications for e
 
 -- valid capability codes for a person, as of now
 create or replace function public.valid_capability_codes(p uuid) returns text[]
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = public, extensions as $$
   select coalesce(array_agg(c.code order by c.code), '{}')
   from public.certifications ce join public.capabilities c on c.id = ce.capability_id
   where ce.profile_id = p and not ce.suspended and c.active
@@ -41,7 +41,7 @@ $$;
 
 -- which of the required codes does this person lack
 create or replace function public.missing_capabilities(p uuid, required text[]) returns text[]
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = public, extensions as $$
   select coalesce(array_agg(r order by r), '{}')
   from unnest(coalesce(required, '{}')) r
   where not (r = any(public.valid_capability_codes(p)))
@@ -51,7 +51,7 @@ $$;
 create or replace function public.certification_verify(
   idempotency_key uuid, profile_id uuid, capability_code text,
   expires_at timestamptz default null, restrictions text default null, notes text default null)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare prior jsonb; r text; cap record; cert_id uuid;
 begin
   prior := public.idem_check(idempotency_key, 'certification_verify'); if prior is not null then return prior; end if;
@@ -72,7 +72,7 @@ begin
 end $$;
 
 create or replace function public.certification_suspend(idempotency_key uuid, profile_id uuid, capability_code text, reason text)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare prior jsonb; r text; cap record; n int;
 begin
   prior := public.idem_check(idempotency_key, 'certification_suspend'); if prior is not null then return prior; end if;

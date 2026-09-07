@@ -14,7 +14,7 @@ create index weather_events_open_idx on public.weather_events(starts_at desc) wh
 alter table public.work_orders add constraint work_orders_event_fk foreign key (event_id) references public.weather_events(id);
 alter table public.service_records add constraint service_records_event_fk foreign key (event_id) references public.weather_events(id);
 
-create or replace function public.active_event_id() returns uuid language sql stable security definer set search_path = public as $$
+create or replace function public.active_event_id() returns uuid language sql stable security definer set search_path = public, extensions as $$
   select id from public.weather_events where ends_at is null order by starts_at desc limit 1
 $$;
 
@@ -41,7 +41,7 @@ create trigger zone_status_immutable before update or delete on public.zone_stat
 create or replace function public.zone_status_set(
   idempotency_key uuid, zone_id text, activity text, zone_version_id uuid default null, event_id uuid default null,
   at timestamptz default null, location jsonb default null, task_id uuid default null, asset_id text default null, note text default null)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare prior jsonb; r text; z record; sid uuid; me text; ev uuid;
 begin
   prior := public.idem_check(idempotency_key, 'zone_status_set'); if prior is not null then return prior; end if;
@@ -64,7 +64,7 @@ end $$;
 
 -- called by service_finalize: a finalized action also sets the status
 create or replace function public.zone_status_from_action(z text, zv uuid, action text, at timestamptz, task uuid, rec uuid, asset text) returns void
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 declare act text;
 begin
   act := case action when 'plowed' then 'cleared' when 'shoveled' then 'cleared' when 'salted' then 'salted' when 'sanded' then 'sanded'
@@ -105,7 +105,7 @@ create table public.operating_state_acks (
 );
 
 create or replace function public.operating_state_pivot(idempotency_key uuid, expected_revision int, to_mode text, reason text, event jsonb default null)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare prior jsonb; st record; ev uuid; me text;
 begin
   prior := public.idem_check(idempotency_key, 'operating_state_pivot'); if prior is not null then return prior; end if;
@@ -134,7 +134,7 @@ begin
 end $$;
 
 create or replace function public.operating_state_ack(revision int, device_id text)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 begin
   perform public.auth_role();
   insert into public.operating_state_acks(device_id, profile_id, revision) values (device_id, auth.uid(), revision)

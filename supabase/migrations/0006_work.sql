@@ -83,7 +83,7 @@ create table public.outbox (
 );
 
 create or replace function public.notify(topic text, event_type text, payload jsonb) returns void
-language sql security definer set search_path = public as $$
+language sql security definer set search_path = public, extensions as $$
   insert into public.outbox(topic, event_type, payload) values (topic, event_type, payload || jsonb_build_object('type', event_type, 'at', now()))
 $$;
 
@@ -98,7 +98,7 @@ $$;
 
 -- who may see a task: admin/oversight all; lead: crew tasks; worker: own
 create or replace function public.can_see_task(t public.tasks) returns boolean
-language plpgsql stable security definer set search_path = public as $$
+language plpgsql stable security definer set search_path = public, extensions as $$
 declare r text;
 begin
   select app_role into r from public.profiles where id = auth.uid() and active;
@@ -114,7 +114,7 @@ end $$;
 
 -- may the caller assign work to this person
 create or replace function public.can_direct(target uuid) returns boolean
-language plpgsql stable security definer set search_path = public as $$
+language plpgsql stable security definer set search_path = public, extensions as $$
 declare r text;
 begin
   select app_role into r from public.profiles where id = auth.uid() and active;
@@ -130,7 +130,7 @@ begin
   end if;
 end $$;
 
-create or replace function public.load_task(tid uuid) returns public.tasks language plpgsql security definer set search_path = public as $$
+create or replace function public.load_task(tid uuid) returns public.tasks language plpgsql security definer set search_path = public, extensions as $$
 declare t public.tasks;
 begin
   select * into t from public.tasks where id = tid for update;
@@ -138,12 +138,12 @@ begin
   return t;
 end $$;
 
-create or replace function public.open_task_ids_for(p uuid) returns uuid[] language sql stable security definer set search_path = public as $$
+create or replace function public.open_task_ids_for(p uuid) returns uuid[] language sql stable security definer set search_path = public, extensions as $$
   select coalesce(array_agg(id), '{}') from public.tasks where assignee_id = p and state in ('assigned','accepted','in_progress','blocked')
 $$;
 
 create or replace function public.reserve_asset(p_asset text, p_holder uuid, p_task public.tasks, p_assignment uuid) returns void
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 declare w tstzrange; avail jsonb;
 begin
   if p_asset is null then return; end if;
@@ -156,7 +156,7 @@ begin
 end $$;
 
 create or replace function public.release_assets(p_task uuid, p_assignment uuid) returns void
-language sql security definer set search_path = public as $$
+language sql security definer set search_path = public, extensions as $$
   update public.asset_reservations set released_at = now() where task_id = p_task and (p_assignment is null or assignment_id = p_assignment) and released_at is null
 $$;
 
@@ -171,7 +171,7 @@ create or replace function public.task_create(
   required_capabilities text[] default null, required_asset_class text default null,
   scheduled_start timestamptz default null, scheduled_end timestamptz default null,
   evidence_required text[] default null, point jsonb default null)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare prior jsonb; r text; z record; zv uuid; wo record; t public.tasks; ko text; my_crew uuid;
 begin
   prior := public.idem_check(idempotency_key, 'task_create'); if prior is not null then return prior; end if;
@@ -209,7 +209,7 @@ end $$;
 create or replace function public.task_assign(
   idempotency_key uuid, task_id uuid, profile_id uuid, expected_revision int default null,
   asset_id text default null, attachment_id text default null, note text default null, override_qualification boolean default false)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare prior jsonb; r text; t public.tasks; target record; missing text[]; a public.assignments; assigner text;
 begin
   prior := public.idem_check(idempotency_key, 'task_assign'); if prior is not null then return prior; end if;
@@ -242,7 +242,7 @@ end $$;
 
 -- ---------- assignment_acknowledge ----------
 create or replace function public.assignment_acknowledge(idempotency_key uuid, assignment_id uuid, expected_revision int default null, location jsonb default null)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare prior jsonb; a public.assignments; t public.tasks;
 begin
   prior := public.idem_check(idempotency_key, 'assignment_acknowledge'); if prior is not null then return prior; end if;
@@ -265,7 +265,7 @@ end $$;
 create or replace function public.assignment_reassign(
   idempotency_key uuid, task_id uuid, to_profile_id uuid, expected_revision int default null, reason text default null,
   keep_asset boolean default true, asset_id text default null, attachment_id text default null, override_qualification boolean default false)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare prior jsonb; r text; t public.tasks; old_a public.assignments; new_a public.assignments; target record; missing text[];
         me record; prev_name text; assigner text; use_asset text; use_att text;
 begin
@@ -309,7 +309,7 @@ end $$;
 
 -- ---------- assignment_release ----------
 create or replace function public.assignment_release(idempotency_key uuid, assignment_id uuid, reason text, expected_revision int default null)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare prior jsonb; a public.assignments; t public.tasks; me text;
 begin
   prior := public.idem_check(idempotency_key, 'assignment_release'); if prior is not null then return prior; end if;
@@ -332,7 +332,7 @@ end $$;
 
 -- ---------- task_start ----------
 create or replace function public.task_start(idempotency_key uuid, task_id uuid, location jsonb, expected_revision int default null, asset_id text default null, attachment_id text default null)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare prior jsonb; t public.tasks; s record; pt geometry; asmt jsonb; ko text;
 begin
   prior := public.idem_check(idempotency_key, 'task_start'); if prior is not null then return prior; end if;
@@ -358,7 +358,7 @@ end $$;
 
 -- ---------- task_block / unblock / cancel ----------
 create or replace function public.task_block(idempotency_key uuid, task_id uuid, reason text, expected_revision int default null, photo_path text default null)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare prior jsonb; r text; t public.tasks; me text;
 begin
   prior := public.idem_check(idempotency_key, 'task_block'); if prior is not null then return prior; end if;
@@ -376,7 +376,7 @@ begin
 end $$;
 
 create or replace function public.task_unblock(idempotency_key uuid, task_id uuid, expected_revision int default null, note text default null)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare prior jsonb; r text; t public.tasks;
 begin
   prior := public.idem_check(idempotency_key, 'task_unblock'); if prior is not null then return prior; end if;
@@ -394,7 +394,7 @@ begin
 end $$;
 
 create or replace function public.task_cancel(idempotency_key uuid, task_id uuid, reason text, expected_revision int default null)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare prior jsonb; r text; t public.tasks;
 begin
   prior := public.idem_check(idempotency_key, 'task_cancel'); if prior is not null then return prior; end if;
@@ -414,7 +414,7 @@ end $$;
 
 -- ---------- dispatch_candidates ----------
 create or replace function public.dispatch_candidates(task_id uuid)
-returns jsonb language plpgsql stable security definer set search_path = public as $$
+returns jsonb language plpgsql stable security definer set search_path = public, extensions as $$
 declare t public.tasks; center geography; out_ jsonb;
 begin
   perform public.auth_role();

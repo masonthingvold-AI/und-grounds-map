@@ -37,7 +37,7 @@ alter table public.certifications add column source text not null default 'verif
 
 -- a lead (own crew) or the person themselves asks; every outcome must be attested
 create or replace function public.certification_request(idempotency_key uuid, profile_id uuid, capability_code text, outcomes_met jsonb default '[]'::jsonb, notes text default null)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare prior jsonb; r text; cap record; rid uuid; missing jsonb;
 begin
   prior := public.idem_check(idempotency_key, 'certification_request'); if prior is not null then return prior; end if;
@@ -60,7 +60,7 @@ end $$;
 
 -- admin decides; approval creates or refreshes the certification
 create or replace function public.certification_decide(idempotency_key uuid, request_id uuid, approve boolean, decision_notes text default null, expires_at timestamptz default null, restrictions text default null)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare prior jsonb; q record; cert_id uuid; code text;
 begin
   prior := public.idem_check(idempotency_key, 'certification_decide'); if prior is not null then return prior; end if;
@@ -86,7 +86,7 @@ begin
 end $$;
 
 -- full-time employees hold every auto capability from the day their profile exists (everything except CDL)
-create or replace function public.grant_full_time_defaults(p uuid) returns int language plpgsql security definer set search_path = public as $$
+create or replace function public.grant_full_time_defaults(p uuid) returns int language plpgsql security definer set search_path = public, extensions as $$
 declare n int;
 begin
   insert into public.certifications(profile_id, capability_id, verified_by, verified_at, source, notes)
@@ -95,7 +95,7 @@ begin
   on conflict on constraint certifications_profile_id_capability_id_key do nothing;
   get diagnostics n = row_count; return n;
 end $$;
-create or replace function public.profiles_full_time_defaults() returns trigger language plpgsql security definer set search_path = public as $$
+create or replace function public.profiles_full_time_defaults() returns trigger language plpgsql security definer set search_path = public, extensions as $$
 begin
   if new.employment_tier = 'full_time' and (tg_op = 'INSERT' or old.employment_tier is distinct from 'full_time') then perform public.grant_full_time_defaults(new.id); end if;
   return new;
@@ -118,7 +118,7 @@ revoke execute on function public.grant_full_time_defaults(uuid) from anon, auth
 
 -- ---------- 3. oversight may direct work ----------
 create or replace function public.can_direct(target uuid) returns boolean
-language plpgsql stable security definer set search_path = public as $$
+language plpgsql stable security definer set search_path = public, extensions as $$
 declare r text;
 begin
   select app_role into r from public.profiles where id = auth.uid() and active;
@@ -134,7 +134,7 @@ alter table public.work_orders add column external_system text, add column exter
 create index work_orders_external_idx on public.work_orders(external_system, external_ref);
 
 create or replace function public.work_order_link_external(idempotency_key uuid, work_order_id uuid, external_system text, external_ref text, external_url text default null)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare prior jsonb; r text; n int;
 begin
   prior := public.idem_check(idempotency_key, 'work_order_link_external'); if prior is not null then return prior; end if;
@@ -156,7 +156,7 @@ create or replace function public.task_create(
   required_capabilities text[] default null, required_asset_class text default null,
   scheduled_start timestamptz default null, scheduled_end timestamptz default null,
   evidence_required text[] default null, point jsonb default null, external_ref jsonb default null)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare prior jsonb; r text; z record; zv uuid; wo record; t public.tasks; ko text; my_crew uuid;
 begin
   prior := public.idem_check(idempotency_key, 'task_create'); if prior is not null then return prior; end if;
@@ -197,7 +197,7 @@ end $$;
 create or replace function public.task_assign(
   idempotency_key uuid, task_id uuid, profile_id uuid, expected_revision int default null,
   asset_id text default null, attachment_id text default null, note text default null, override_qualification boolean default false)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare prior jsonb; r text; t public.tasks; target record; missing text[]; a public.assignments; assigner text;
 begin
   prior := public.idem_check(idempotency_key, 'task_assign'); if prior is not null then return prior; end if;
@@ -229,7 +229,7 @@ end $$;
 create or replace function public.assignment_reassign(
   idempotency_key uuid, task_id uuid, to_profile_id uuid, expected_revision int default null, reason text default null,
   keep_asset boolean default true, asset_id text default null, attachment_id text default null, override_qualification boolean default false)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare prior jsonb; r text; t public.tasks; old_a public.assignments; new_a public.assignments; target record; missing text[];
         me record; prev_name text; use_asset text; use_att text; mode_ text;
 begin
@@ -272,7 +272,7 @@ begin
 end $$;
 
 -- names of people on a task are visible to anyone who can see the task, even if they cannot see the profile row
-create or replace function public.profile_name(p uuid) returns text language sql stable security definer set search_path = public as $$
+create or replace function public.profile_name(p uuid) returns text language sql stable security definer set search_path = public, extensions as $$
   select full_name from public.profiles where id = p
 $$;
 grant execute on function public.profile_name(uuid) to authenticated;
@@ -350,7 +350,7 @@ create policy time_entries_read on public.time_entries for select to authenticat
 
 -- what a person did during a shift: one line per task worked, plus minutes per zone from GPS
 create or replace function public.day_log(shift_id uuid) returns jsonb
-language plpgsql stable security definer set search_path = public as $$
+language plpgsql stable security definer set search_path = public, extensions as $$
 declare s record; tasks_ jsonb; zones_ jsonb; total int;
 begin
   perform public.auth_role();
@@ -380,7 +380,7 @@ end $$;
 
 -- the worker confirms the log into time entries (edits allowed; suggested minutes kept for comparison)
 create or replace function public.time_entries_confirm(idempotency_key uuid, shift_id uuid, entries jsonb)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare prior jsonb; s record; e jsonb; n int := 0; total int := 0; wo uuid;
 begin
   prior := public.idem_check(idempotency_key, 'time_entries_confirm'); if prior is not null then return prior; end if;
@@ -403,7 +403,7 @@ end $$;
 
 -- shift_end now returns the day log
 create or replace function public.shift_end(idempotency_key uuid, shift_id uuid, location jsonb default null, note text default null)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare prior jsonb; s record; open_tasks uuid[];
 begin
   prior := public.idem_check(idempotency_key, 'shift_end'); if prior is not null then return prior; end if;
