@@ -30,7 +30,7 @@ Synthetic test people (`*@test.invalid`) exist in the project from the smoke tes
 
 **Transport.** Supabase JS client (`@supabase/supabase-js` v2). Reads go through views with `supabase.from('v_name').select(...)`. Writes go through database functions with `supabase.rpc('fn_name', { ...args })`. Direct `insert`, `update`, or `delete` on any table from the client is denied by RLS and by grants; do not write one.
 
-**Argument naming.** Function arguments are snake_case with no prefix in the RPC call (`supabase.rpc('task_assign', { task_id, profile_id, idempotency_key })`). Inside Postgres the parameters carry a `p_` prefix; the client never sees that.
+**Argument naming.** Function arguments are snake_case with no prefix in the RPC call (`supabase.rpc('task_assign', { task_id, profile_id, idempotency_key })`). The SQL parameters use the same names, so the RPC argument names in this document are exact (the two exceptions, `evidence_verify(p_record)` and internal helpers, are noted where they appear).
 
 **Timestamps.** ISO 8601 with offset, always UTC on the wire (`2026-11-14T13:02:11Z`). The database stores `timestamptz`. The client displays in America/Chicago.
 
@@ -46,7 +46,7 @@ Synthetic test people (`*@test.invalid`) exist in the project from the smoke tes
 
 `revision` is present when the object the function touched carries one (tasks, operating state). `replayed: true` means the idempotency key had already been processed and this is the stored result of the first call, not a second execution.
 
-**Errors.** Functions raise with `RAISE EXCEPTION USING ERRCODE = 'P0001', MESSAGE = 'GRND-<code>: <human text>', DETAIL = '<json>'`. The Supabase client surfaces this as `error.message` starting with `GRND-` and `error.details` as a JSON string. Parse the code from the first nine characters. Codes:
+**Errors.** Functions raise with `RAISE EXCEPTION USING ERRCODE = 'P0001', MESSAGE = 'GRND-<code>: <human text>', DETAIL = '<json>'`. The Supabase client surfaces this as `error.message` starting with `GRND-` and `error.details` as a JSON string. Parse the code from the first eight characters (`GRND-423`). Codes:
 
 | Code | Meaning | Client should |
 |---|---|---|
