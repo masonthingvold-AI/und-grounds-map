@@ -35,6 +35,13 @@ export function mountShell(root, {onNavigate, onSignOut}) {
   root.querySelector('.inner').classList.toggle('wide',['map','dispatch','people','assets'].includes(state.route));
   resize(); window.lucide?.createIcons();
  }
+ function setTheme(theme) {
+  document.documentElement.dataset.theme=theme==='dark'?'dark':'light';
+  remember('und-grounds-theme',document.documentElement.dataset.theme);
+  root.querySelectorAll('[data-theme-select]').forEach(select=>{select.value=document.documentElement.dataset.theme;});
+  draw();
+ }
+ root.addEventListener('change',event=>{if(event.target.matches('[data-theme-select]'))setTheme(event.target.value);},{signal:events.signal});
  function resize() { rail.classList.toggle('compact',window.innerWidth<=1100 && compact); }
  function closeAccount() { account.hidden=true; avatar.setAttribute('aria-expanded','false'); }
  avatar.onclick = () => { account.hidden=!account.hidden; avatar.setAttribute('aria-expanded',String(!account.hidden)); };
@@ -46,7 +53,7 @@ export function mountShell(root, {onNavigate, onSignOut}) {
    case 'more': sheet.showModal(); break;
    case 'close': sheet.close(); break;
    case 'collapse': compact=!compact;remember('und-grounds-compact',String(compact));draw();break;
-   case 'theme': document.documentElement.dataset.theme=document.documentElement.dataset.theme==='dark'?'light':'dark';remember('und-grounds-theme',document.documentElement.dataset.theme);draw();break;
+   case 'theme': setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');break;
    case 'settings': closeAccount();onNavigate('settings');break;
    case 'signout': sheet.close();closeAccount();onSignOut();break;
   }
