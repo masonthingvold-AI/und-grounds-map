@@ -12,7 +12,7 @@ import {client,login,signOut,readView,rpc} from './api.mjs';
 import {mountShell} from './shell.mjs';
 import {showMap,clearMap,showMessages,dashboard,showLiveZone} from './views.mjs';
 const $=s=>document.querySelector(s),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let me=null,shift=null,mode={},route='day',tasks=[],shell,epoch=0,tracker,dayLog,queue,locations,replayTimer,read=readView,pollTimer;
+let me=null,shift=null,mode={},route=location.hash.slice(1)||'day',tasks=[],shell,epoch=0,tracker,dayLog,queue,locations,replayTimer,read=readView,pollTimer;
 const canDispatch=()=>['lead','admin','oversight'].includes(me?.app_role);
 const notify=message=>{if($('#notice'))$('#notice').textContent=message;};
 function loginScreen(message=''){
@@ -37,10 +37,11 @@ async function refresh(){const values=await Promise.all([read('v_my_shift'),read
 function showError(e){if(['401','GRND-401'].includes(e.code)){signOut();loginScreen('Your session ended. Sign in again.');}else notify(e.message);}
 async function act(fn,args,meta={}){const item=await queue.add(fn,args,meta);if(item.status==='done'){await refresh();await render();return item.result;}if(item.status==='validation'||item.status==='review')throw Object.assign(Error(item.error.message),item.error);notify('Action saved on this device. It will synchronize when connected.');return {pending:true};}
 const onLocation=async location=>{if(!shift)throw Error('Start your shift before starting work.');return tracker.capture(location);};
-async function shiftAction(){try{
+let shiftActionBusy=false;
+async function shiftAction(){if(shiftActionBusy)return;shiftActionBusy=true;const button=$('#shift-action');if(button)button.disabled=true;try{
  if(shift){tracker.stop();await tracker.flushSamples();const result=await act('shift_end',{shift_id:shift.shift_id});if(result.pending){notify('Shift end is queued after your pending work.');return;}dayLog=result.data.day_log;await save(me.id,'day-log',dayLog);route='day-log';await render();}
  else{try{await act('shift_start',{device_id:'grounds-web'});}catch(e){if(e.code!=='GRND-410')throw e;await refresh();}tracker.start();await render();}
-}catch(e){showError(e);}}
+}catch(e){showError(e);}finally{shiftActionBusy=false;if(button)button.disabled=false;}}
 async function render(){
  if(!me)return;const version=++epoch;clearMap();history.replaceState(null,'','#'+route);updateShell();const target=document.createElement('div');$('#content').replaceChildren(target);target.innerHTML='<p class="muted">Loading</p>';
  if(['dispatch','people'].includes(route)&&!canDispatch()){route='day';return render();}

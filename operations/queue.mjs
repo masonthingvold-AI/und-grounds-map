@@ -18,16 +18,16 @@ export class CommandQueue{
  if(item.fn==='shift_end'&&this.items.slice(0,this.items.indexOf(item)).some(c=>!['done','canceled'].includes(c.status)))continue;
  if(item.fn==='service_finalize'&&(item.args.photos||[]).some(p=>!p.path)){item.status='validation';item.error={message:'Photos must upload before completion.',details:{fields:['photos']}};await this.persist();continue;}
  if(!item.attempts&&dependency?.result?.revision!=null)item.args.expected_revision=dependency.result.revision;
- item.attempts++;await this.persist();
+ item.attempts++;this.inFlight=item.id;await this.persist();
  try{item.result=await this.send(item.fn,item.args);item.status='done';item.error=null;await this.persist();try{await this.completed(item);}catch(e){this.changed(e);}}
  catch(e){item.error={message:e.message,code:e.code,details:e.details};
  if(['401','GRND-401'].includes(e.code)){this.stopped=true;await this.persist();this.changed(e);return;}
  if(e.retryable){item.nextAt=Date.now()+backoff(item.attempts);}else item.status=e.code==='GRND-422'?'validation':'review';
- await this.persist();}
+ await this.persist();}finally{this.inFlight=null;}
  }
  }
  async fix(id,args){const item=this.items.find(c=>c.id===id);if(item?.status!=='validation')throw Error('Only a validation error can be corrected with the same key.');item.args={...args,idempotency_key:item.args.idempotency_key};item.status='pending';item.nextAt=0;await this.persist();return this.flush();}
- async cancel(id){const item=this.items.find(c=>c.id===id);if(item.status==='done')throw Error('A completed command cannot be canceled.');item.status='canceled';let changed=true;while(changed){changed=false;for(const child of this.items){if(child.status!=='done'&&child.status!=='canceled'&&this.items.find(p=>p.id===child.dependsOn)?.status==='canceled'){child.status='canceled';changed=true;}}}await this.persist();}
+ async cancel(id){const item=this.items.find(c=>c.id===id);if(!item)throw Error('This saved action is no longer available.');if(this.inFlight===id)throw Error('This action is being sent. Wait for the result before canceling.');if(item.status==='done')throw Error('A completed command cannot be canceled.');item.status='canceled';let changed=true;while(changed){changed=false;for(const child of this.items){if(child.status!=='done'&&child.status!=='canceled'&&this.items.find(p=>p.id===child.dependsOn)?.status==='canceled'){child.status='canceled';changed=true;}}}await this.persist();}
  async redo(id){const item=this.items.find(c=>c.id===id);if(!['review','canceled'].includes(item.status))throw Error('Review the action before retrying.');return item;}
  async stop(){this.stopped=true;await this.running;}
 }

@@ -2,12 +2,12 @@ import {escape,displayTime,fieldError,getLocation} from './worker.mjs';
 import {load,save} from './store.mjs';
 export class ShiftTracker{
  constructor({read,send,owner,notify,onUpdate}){Object.assign(this,{read,send,owner,notify,onUpdate});this.shift=null;this.samples=[];this.enabled=false;this.timer=null;this.busy=false;}
- async update(shift){this.shift=shift;if(!shift)this.stop();}
+ async update(shift){if(this.shift?.shift_id!==shift?.shift_id){this.stop();await this.flushSamples();this.lastSent=0;}this.shift=shift;if(!shift)this.stop();}
  start(){if(this.enabled||!this.shift)return;this.enabled=true;this.tick();this.timer=setInterval(()=>this.tick(),30000);}
  stop(){this.enabled=false;clearInterval(this.timer);this.timer=null;}
- async flushSamples(){if(this.samples.length&&this.shift){const samples=this.samples;this.samples=[];await this.send(this.shift.shift_id,samples);}}
+ async flushSamples(){if(this.samples.length&&this.shift){const samples=this.samples,shiftId=this.shift.shift_id;this.samples=[];try{await this.send(shiftId,samples);}catch(error){this.samples.unshift(...samples);throw error;}}}
  async capture(location){if(!this.shift)throw Error('Start your shift first.');await this.send(this.shift.shift_id,[{...location,source:'gps'}]);}
- async tick(){if(!this.enabled||!this.shift||document.hidden||this.busy)return;this.busy=true;try{const location=await getLocation();if(!this.enabled||!this.shift||document.hidden)return;this.samples.push({...location,source:'gps'});if(!this.lastSent||Date.now()-this.lastSent>=60000){await this.send(this.shift.shift_id,this.samples);this.samples=[];this.lastSent=Date.now();await this.onUpdate();}}catch(e){this.notify(e.message);}finally{this.busy=false;}}
+ async tick(){if(!this.enabled||!this.shift||document.hidden||this.busy)return;this.busy=true;try{const location=await getLocation();if(!this.enabled||!this.shift||document.hidden)return;this.samples.push({...location,source:'gps'});if(!this.lastSent||Date.now()-this.lastSent>=60000){await this.flushSamples();this.lastSent=Date.now();await this.onUpdate();}}catch(e){this.notify(e.message);}finally{this.busy=false;}}
 }
 export async function showDayLog(target,log,{owner,act,onDone}){
  await save(owner,'day-log',log);
