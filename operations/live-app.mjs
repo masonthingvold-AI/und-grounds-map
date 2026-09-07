@@ -1,3 +1,4 @@
+import {showCertifications} from './certifications.mjs';
 import {showBoard,showPeople} from './dispatch.mjs';
 import {CommandQueue,LocationQueue} from './queue.mjs';
 import {showQueue} from './queue-view.mjs';
@@ -40,6 +41,7 @@ async function shiftAction(){try{
 async function render(){
  if(!me)return;const version=++epoch;clearMap();history.replaceState(null,'','#'+route);updateShell();$('#content').innerHTML='<p class="muted">Loading</p>';
  if(['dispatch','people'].includes(route)&&!canDispatch()){route='day';return render();}
+ if(route==='certifications'){if(!['lead','admin'].includes(me.app_role)){route='day';return render();}await showCertifications($('#content'),{read:readView,act,me});return;}
  if(route==='dispatch'){tasks=await showBoard($('#content'),{read:readView,call:rpc,act,me});updateShell();return;}
  if(route==='people'){await showPeople($('#content'),{read:readView});return;}
  if(route==='day-log'&&dayLog){await showDayLog($('#content'),dayLog,{owner:me.id,act,onDone:()=>{dayLog=null;route='day';render();}});return;}

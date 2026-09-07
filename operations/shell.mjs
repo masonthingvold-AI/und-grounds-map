@@ -4,7 +4,8 @@ export const groups = [
  ['CONNECT',null,[['messages','Messages','messages-square'],['crew-lead','Ask my crew lead','message-circle']]],
  ['DISPATCH',['lead','admin','oversight'],[['dispatch','Board','columns-3'],['people','People','users']]],
  ['RECORDS',['lead','admin','oversight'],[['records','Service records','clipboard-list'],['evidence','Evidence','camera']]],
- ['ADMIN',['admin'],[['certifications','Certifications','badge-check'],['keep-outs','Keep-outs','octagon-alert'],['mode','Mode','snowflake']]]
+ ['TRAINING',['lead','admin'],[['certifications','Certifications','badge-check']]],
+ ['ADMIN',['admin'],[['keep-outs','Keep-outs','octagon-alert'],['mode','Mode','snowflake']]]
 ];
 export const navigationFor = role => groups.filter(([, roles]) => !roles || roles.includes(role));
 export const humanError = value => String(value ?? '').replace(/GRND-[\w-]+\s*:\s*/g, '').replace(/GRND-[\w-]+/g, 'This action could not be completed.');
