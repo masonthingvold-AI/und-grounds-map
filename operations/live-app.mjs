@@ -1,3 +1,4 @@
+import {showBoard,showPeople} from './dispatch.mjs';
 import {CommandQueue,LocationQueue} from './queue.mjs';
 import {showQueue} from './queue-view.mjs';
 import {showProof} from './proof.mjs';
@@ -38,6 +39,9 @@ async function shiftAction(){try{
 }catch(e){showError(e);}}
 async function render(){
  if(!me)return;const version=++epoch;clearMap();history.replaceState(null,'','#'+route);updateShell();$('#content').innerHTML='<p class="muted">Loading</p>';
+ if(['dispatch','people'].includes(route)&&!canDispatch()){route='day';return render();}
+ if(route==='dispatch'){tasks=await showBoard($('#content'),{read:readView,call:rpc,act,me});updateShell();return;}
+ if(route==='people'){await showPeople($('#content'),{read:readView});return;}
  if(route==='day-log'&&dayLog){await showDayLog($('#content'),dayLog,{owner:me.id,act,onDone:()=>{dayLog=null;route='day';render();}});return;}
  if(route==='queue'){showQueue($('#content'),queue,{review:id=>taskDetail(id,{read:readView,act,me,onLocation,proof:task=>showProof(task,{owner:me.id})})});return;}
  if(route==='settings'){$('#content').innerHTML=`<h1>Your account</h1><article class="card"><h2>${esc(me.full_name)}</h2><p>${esc(me.app_role)} · ${esc(me.crew_name||'No crew')}</p><p class="muted">Signed in through Supabase Auth. Session refresh is automatic.</p></article>`;return;}
