@@ -9,7 +9,7 @@ EQ-13,13,machine,utv,Bobcat,3400XL,AJNV30240,UTV,,
 EQ-185,185,machine,loader,Bobcat,L85,B53C11536,BOBCAT,,
 EQ-175,175,machine,loader,Bobcat,L85,B53C11462,BOBCAT,,
 EQ-75,75,machine,skid_steer,Bobcat,A300,539912246,BOBCAT,,
-EQ-S76,Skid steer (S76),machine,skid_steer,Bobcat,S76,B4CD15572,BOBCAT,,Nicknamed "My Skiddy" on the Bobcat account; no unit number yet
+EQ-415,415,machine,skid_steer,Bobcat,S76,B4CD15572,BOBCAT,,Nicknamed "My Skiddy" on the Bobcat account
 EQ-190,190,machine,skid_steer,Bobcat,S450,B4RH12842,BOBCAT,,
 EQ-182,182,machine,loader,Bobcat,L28,B4LD13151,BOBCAT,,
 EQ-40,40,machine,utv,Bobcat,UV34XL,B53722520,UTV,,
@@ -20,5 +20,5 @@ ATT-278B,278 broom,attachment,broom,Bobcat,Angle Broom,B4LR00752,,EQ-278,
 ATT-SPAREB,Spare broom,attachment,broom,Bobcat,Angle Broom,B4LR01601,,toolcat,
 ATT-277B,277 broom,attachment,broom,Bobcat,Angle Broom,B4LR02510,,,Unit 277 is not on the Bobcat account
 ATT-075B,075 broom,attachment,broom,Bobcat,Angle Broom,B4LR01609,,EQ-75,
-ATT-415B,415 broom,attachment,broom,Bobcat,Angle Broom,B4KZ02556,,,Unit 415 is not on the Bobcat account
+ATT-415B,415 broom,attachment,broom,Bobcat,Angle Broom,B4KZ02556,,EQ-415,
 ATT-190B,190 broom,attachment,broom,Bobcat,Angle Broom,B4KZ05111,,EQ-190,
