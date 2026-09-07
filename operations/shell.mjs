@@ -2,10 +2,10 @@ const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp
 export const groups = [
  ['WORK', null, [['day','My Day','sun'],['map','Map','map'],['status','Zone status','layers'],['assets','Assets','tractor']]],
  ['CONNECT',null,[['messages','Messages','messages-square'],['crew-lead','Ask my crew lead','message-circle']]],
- ['DISPATCH',['lead','admin','oversight'],[['dispatch','Board','columns-3'],['people','People','users']]],
+ ['DISPATCH',['lead','admin','oversight'],[['dispatch','Board','columns-3'],['people','People','users'],['planning','Planning','calendar-days']]],
  ['RECORDS',['lead','admin','oversight'],[['records','Service records','clipboard-list'],['evidence','Evidence','camera']]],
  ['TRAINING',['lead','admin'],[['certifications','Certifications','badge-check']]],
- ['ADMIN',['admin'],[['keep-outs','Keep-outs','octagon-alert'],['mode','Mode','snowflake']]]
+ ['ADMIN',['admin'],[['keep-outs','Keep-outs','octagon-alert'],['mode','Mode','snowflake'],['sync-health','Sync health','refresh-cw']]]
 ];
 export const navigationFor = role => groups.filter(([, roles]) => !roles || roles.includes(role));
 export const humanError = value => String(value ?? '').replace(/GRND-[\w-]+\s*:\s*/g, '').replace(/GRND-[\w-]+/g, 'This action could not be completed.');

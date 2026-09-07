@@ -6,8 +6,7 @@ export function apiError(error,status){
 }
 export const client=globalThis.supabase.createClient(supabaseConfig.url,supabaseConfig.anonKey,{auth:{persistSession:typeof window!=='undefined',autoRefreshToken:typeof window!=='undefined',detectSessionInUrl:false}});
 export async function readView(name,filters={},order){
- let q=client.from(name).select('*');for(const [key,value]of Object.entries(filters))q=q.eq(key,value);if(order)q=q.order(order,{ascending:true});
- const {data,error,status}=await q;if(error)throw apiError(error,status);return data;
+ const result=[];for(let offset=0;;offset+=50){let q=client.from(name).select('*');for(const [key,value]of Object.entries(filters))q=q.eq(key,value);if(order)q=q.order(order,{ascending:true});const {data,error,status}=await q.range(offset,offset+49);if(error)throw apiError(error,status);result.push(...data);if(data.length<50)return result;}
 }
 export async function rpc(fn,args){const {data,error,status}=await client.rpc(fn,args);if(error)throw apiError(error,status);return data;}
 export async function login(email,password){const {error}=await client.auth.signInWithPassword({email,password});if(error)throw apiError(error);const [me]=await readView('v_me');if(!me?.active){await client.auth.signOut({scope:'local'});throw Error('Your profile is not active.');}return me;}

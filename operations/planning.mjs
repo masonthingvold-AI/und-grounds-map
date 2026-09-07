@@ -1,0 +1,17 @@
+import {escape,displayTime,fieldError} from './worker.mjs';
+export const centralDate=value=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Chicago',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(value));
+export async function showPlanning(target,{read,act}){
+ const events=await read('v_campus_events',{},'starts_at');
+ target.innerHTML=`<p class="eyebrow">Campus calendar</p><h1>Planning</h1><div class="planning-filters"><label>From<input id="events-from" type="date" value="${centralDate(Date.now())}"></label><label>Through<input id="events-to" type="date"></label><label><input id="watched-only" type="checkbox" checked> Watched events only</label></div><p class="muted">Watch flags mark events that Grounds should plan for. Times are Central.</p><div id="planning-list" class="live-list"></div>`;
+ const q=s=>target.querySelector(s);
+ function draw(){const from=q('#events-from').value,to=q('#events-to').value,only=q('#watched-only').checked;const selected=events.filter(e=>(!only||e.watch)&&(!from||centralDate(e.starts_at)>=from)&&(!to||centralDate(e.starts_at)<=to));q('#planning-list').innerHTML=selected.map(e=>`<article class="card"><p class="eyebrow">${escape(e.source)} · ${escape(e.days_until)} days away</p><h2>${escape(e.title)}</h2><p>${escape(displayTime(e.starts_at))} · ${escape(e.venue_name||'Venue not listed')}</p><p class="muted">${escape(e.watch_reason||'')} ${escape(e.notes||'')}</p><label><input type="checkbox" data-watch="${escape(e.event_id)}" ${e.watch?'checked':''}> Watch for Grounds planning</label><p data-event-error="${escape(e.event_id)}" role="alert"></p></article>`).join('')||'<p>No events match these filters.</p>';
+ q('#planning-list').querySelectorAll('[data-watch]').forEach(input=>input.onchange=async()=>{input.disabled=true;try{await act('event_watch',{event_id:input.dataset.watch,watch:input.checked,reason:'Updated in Grounds planning'});}catch(error){input.checked=!input.checked;fieldError(input.closest('article').querySelector('[role=alert]'),error);input.disabled=false;}});
+ }
+ for(const el of target.querySelectorAll('.planning-filters input'))el.onchange=draw;draw();
+}
+export async function showReminders(target,{read,act}){
+ const reminders=await read('v_event_reminders',{open:true},'due_on');if(!target.isConnected)return;
+ target.innerHTML=`<section class="callout"><h2>Open planning reminders</h2>${reminders.map(r=>`<div><strong>${escape(r.title)}</strong><p>${escape(displayTime(r.starts_at))} · ${escape(r.venue_name||'')}</p><button data-reminder="${escape(r.reminder_id)}">Acknowledge reminder</button><p role="alert"></p></div>`).join('')||'<p>No open reminders.</p>'}</section>`;
+ target.querySelectorAll('[data-reminder]').forEach(button=>button.onclick=async()=>{button.disabled=true;try{await act('event_reminder_ack',{reminder_id:button.dataset.reminder});}catch(e){fieldError(button.parentElement.querySelector('[role=alert]'),e);button.disabled=false;}});
+}
+export async function showSync(target,{read}){const rows=await read('v_event_sync_health');target.innerHTML=`<h1>Calendar sync health</h1><div class="live-list">${rows.map(r=>`<article class="card"><h2>${escape(r.source)}</h2><p>Last success: ${escape(displayTime(r.last_success))}</p><p>${escape(r.active_events)} active events</p><p>${r.last_error?'Last reported error: '+escape(r.last_error):'No error reported'}</p>${r.last_error_at?`<p>${escape(displayTime(r.last_error_at))}</p>`:''}</article>`).join('')||'<p>No sync health information available.</p>'}</div>`;}
