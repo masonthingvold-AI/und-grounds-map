@@ -1,6 +1,6 @@
-# API contract v1.0: UND Grounds operations platform
+# API contract v1.1: UND Grounds operations platform
 
-Status: published September 7, 2026. Owner: Claude (database, functions, views). Consumer: Codex (worker app, dispatch screens).
+Status: v1.0 published September 7, 2026; v1.1 the same day once migrations 0001 to 0009 were applied and the smoke test passed. Owner: Claude (database, functions, views). Consumer: Codex (worker app, dispatch screens).
 Governs: everything the client is allowed to call. If a screen needs something not in this document, ask for it in `docs/api-contract-changes.md` rather than inventing a query.
 Depends on: `docs/adr-001-architecture.md`. Where this document and the ADR disagree, the ADR wins and this document gets fixed.
 
@@ -8,24 +8,23 @@ Stability promise: once a function or view is marked **implemented**, its name, 
 
 ## 0. Implementation status
 
-Nothing in this contract is deployed yet. The Supabase project does not exist until Mason creates it (see the ADR build sequence, step 1). The schema and functions below are what migrations `0001` to `0010` will create. Codex can build screens against the shapes now using the synthetic records in section 11 and a local mock; the first live endpoint lands when the project exists.
+Live on the Supabase project `und-grounds` (URL and anon key are in the Mac checkout's `.env`; ask Mason for the anon key, it is safe to ship in the app). Migrations are in `supabase/migrations/`, applied with `python3 tools/migrate.py`; zones and assets are loaded from the GeoJSON with `python3 tools/seed_supabase.py`; `python3 tools/smoke_test.py` runs the vertical slice end to end as synthetic users (52 checks). See `docs/supabase-setup.md`.
 
-| Item | Status | Safe to build against |
+| Item | Status | Migration |
 |---|---|---|
-| Auth, `profiles`, `auth_role()`, permissions (section 2) | planned, migration 0001 | yes |
-| `v_my_day`, `v_task_detail` (section 3) | planned, 0008 | yes |
-| `v_crew_availability`, `v_qualifications` (section 3) | planned, 0003 and 0004 | yes |
-| `v_dispatch_board` (section 3) | planned, 0008 | yes |
-| `shift_start`, `shift_end` (section 4) | planned, 0006 | yes |
-| `location_upload` (section 5) | planned, 0007 | yes |
-| `task_create`, `task_assign`, `assignment_acknowledge`, `assignment_reassign`, `assignment_release`, `task_start`, `task_block` (section 6) | planned, 0008 | yes |
-| `evidence_upload_url`, `service_finalize` (section 7) | planned, 0009 | yes, photo path rules are final |
-| `zone_status_set`, `v_zone_status_current` (section 8) | planned, 0009 | yes |
-| `operating_state_pivot`, `v_operating_state` (section 9) | planned, 0010 | yes |
-| Realtime channels (section 10) | planned, 0010 | yes for `tasks`, `assignments`, `operating_state`; broadcast payloads may change |
-| `keepout_open`, `keepout_close` | planned, later phase | shape only, do not ship a screen yet |
-| Asset checkout, materials, maintenance | not in this version | no |
-| Weather recommendations, route guidance | not in this version | no |
+| Auth, `profiles`, `auth_role()`, permissions, `v_me` (section 2) | implemented | 0001 |
+| `v_capabilities`, `v_qualifications`, `certification_verify`, `certification_suspend` (section 3.4) | implemented | 0002 |
+| `v_zones`, `v_keepouts`, `keepout_open`, `keepout_close`, `assess_location` (sections 3, 5) | implemented | 0003 |
+| `v_assets`, `asset_available`, materials ledger (section 6, 7) | implemented | 0004 |
+| `shift_start`, `shift_end`, `shift_end_for`, `location_upload`, `v_my_shift` (sections 4, 5) | implemented | 0005 |
+| `task_create`, `task_assign`, `assignment_acknowledge`, `assignment_reassign`, `assignment_release`, `task_start`, `task_block`, `task_unblock`, `task_cancel`, `dispatch_candidates`, `v_my_day`, `v_task_detail`, `v_dispatch_board`, `v_crew_availability` (sections 3, 6) | implemented | 0006 |
+| `evidence_upload_url`, `service_finalize`, `task_approve`, `evidence_verify`, `v_service_records`, storage bucket `evidence` (section 7) | implemented | 0007 |
+| `zone_status_set`, `v_zone_status_current`, `operating_state_pivot`, `operating_state_ack`, `v_operating_state`, `v_weather_events` (sections 8, 9) | implemented | 0008 |
+| Realtime broadcasts from the outbox, `postgres_changes` on four tables (section 10) | implemented, not yet exercised from a real client | 0009 |
+| Push notifications, weather Edge Function, evidence export Edge Function, photo hash verification job | planned | |
+| Asset checkout screens, maintenance log, barcode, route guidance | not in this version | |
+
+Synthetic test people (`*@test.invalid`) exist in the project from the smoke test. They are not real employees and can be deleted any time.
 
 ## 1. Conventions
 
@@ -197,14 +196,28 @@ Companion: `v_dispatch_candidates(task_id)` is a function, not a view, because i
 
 ```
 supabase.rpc('dispatch_candidates', { task_id })
-→ data: [{ profile_id, full_name, availability, distance_m, on_shift, missing_capabilities: [], current_task: null, crew_name }]
+→ { ok: true, data: [{ profile_id, full_name, availability, distance_m, on_shift, missing_capabilities: [], current_task: null, crew_name }] }
 ```
+
+The caller appears in the list when they may assign to themselves (a lead can take a task).
 
 Ordered: qualified and free first, then by distance from the zone, then busy people. Never omits anyone the caller could assign; unqualified people appear with `missing_capabilities` filled so the supervisor sees why they are greyed out.
 
 ### 3.6 `v_zone_status_current`, `v_operating_state`
 
 Sections 8 and 9.
+
+### 3.7 Reference views
+
+`v_zones` (every zone with its current geometry as GeoJSON, `acres_drawn`, `needs_tracing`, `keepout_reason`), `v_keepouts`, `v_assets` (with who holds a reservation right now), `v_service_records` (the record with its evidence list, `event_count`, `head_hash`), `v_weather_events`, `v_capabilities`. All read-only, RLS filtered.
+
+### 3.8 Certifications
+
+```
+certification_verify:  { idempotency_key, profile_id, capability_code, expires_at?, restrictions?, notes? } → { certification_id, profile_id, capability_code }
+certification_suspend: { idempotency_key, profile_id, capability_code, reason }                            → { profile_id, capability_code, suspended: true }
+```
+Admins verify any capability; leads only those with `granted_by_tier = 'full_time'` and only for their own crew (GRND-403 otherwise). The master list is seeded in migration 0002 as a starting point for Chad and Bobby to edit.
 
 ## 4. Shifts
 
@@ -213,7 +226,7 @@ Sections 8 and 9.
 ```
 args: { idempotency_key uuid, device_id text, location?: { lng, lat, accuracy_m, taken_at } }
 data: { shift_id uuid, started_at timestamptz }
-errors: GRND-410 if the caller already has an open shift (data of the error includes the open shift_id, so the client can adopt it instead of failing)
+errors: GRND-410 if the caller already has an open shift (error.details carries { shift_id, started_at }, so the client adopts it instead of failing)
 ```
 
 A shift belongs to the caller. One open shift per person is an exclusion constraint. If the device finds an open shift on login (`v_my_shift`), it resumes it rather than starting a new one.
@@ -237,7 +250,7 @@ Batch. Called every 60 seconds while a shift is open and the app is in the foreg
 ```
 args: { idempotency_key uuid, shift_id uuid,
         samples: [{ taken_at timestamptz, lng, lat, accuracy_m numeric, speed_mps?: numeric, heading?: numeric, battery?: smallint, source?: 'gps'|'network'|'manual' }] }   -- max 200 per call
-data: { accepted int, rejected int, last_taken_at timestamptz, assessment: { zone_id, zone_version_id, result } | null }
+data: { accepted int, rejected int, rejected_detail: [{ index, reason }], last_taken_at timestamptz, assessment: { zone_id, zone_version_id, result, distance_m, accuracy_m, zone_class, age_s } | null }
 errors: GRND-425 no open shift, GRND-422 if a sample lacks accuracy_m or has a future timestamp (rejected samples are listed in details.rejected, the rest are accepted)
 ```
 
@@ -349,20 +362,20 @@ Blocking releases nothing; the assignment stays so the supervisor knows who hit 
 Photos never go through a database function. They go to Supabase Storage, and the record of them goes through `service_finalize`.
 
 1. Client captures the photo, downsizes to a maximum of 1600 px on the long edge, JPEG quality 0.8 (target 200 to 400 KB), computes `sha256` of the bytes, and generates a `client_photo_id` (UUID v4).
-2. Client calls `evidence_upload_url`:
+2. Client calls `evidence_upload_url` (the name is kept from v1.0; it registers the object and returns its path, there is no signed URL):
 
 ```
 args: { task_id uuid, kind 'before'|'after'|'issue'|'material'|'other', client_photo_id uuid, sha256 text, taken_at timestamptz, location?: {...} }
-data: { path text, signed_url text, expires_at timestamptz }
-errors: GRND-403 not the assignee or supervisor of that task, GRND-410 task not open, GRND-422 bad sha256 format
+data: { path text, bucket 'evidence', upload 'direct', signed_url null }
+errors: GRND-403 not the assignee or supervisor of that task, GRND-410 task not open, GRND-422 bad sha256 format or client_photo_id already used for another task
 ```
 
-   `path` is deterministic: `evidence/{yyyy}/{mm}/{task_id}/{kind}-{client_photo_id}.jpg`. Calling again with the same `client_photo_id` returns the same path and a fresh URL, so retries are safe.
-3. Client uploads the bytes with `supabase.storage.from('evidence').uploadToSignedUrl(path, token, blob)`. On network failure, keep the blob on disk and retry; the path does not change.
+   `path` is deterministic: `evidence/{yyyy}/{mm}/{task_id}/{kind}-{client_photo_id}.jpg` (year and month from `taken_at`, UTC). Calling again with the same `client_photo_id` returns the same path with `replayed: true`, so retries are safe.
+3. Client uploads the bytes with `supabase.storage.from('evidence').upload(path, blob, { contentType: 'image/jpeg', upsert: false })`. The bucket's insert policy only accepts a path this function registered for this user, so nothing else can be written there. On network failure, keep the blob on disk and retry the same path; a second upload of an existing path fails harmlessly and the client moves on to finalize.
 4. The bucket denies update and delete to `authenticated`. A photo, once uploaded, cannot be replaced from the app. A wrong photo is superseded by uploading another and noting it in `service_finalize`; nothing is deleted.
 5. The client keeps `{client_photo_id, path, sha256, kind, taken_at, location}` and passes that list to `service_finalize`.
 
-Metadata the client must send with each photo: `taken_at` from the device clock at capture, and the freshest location sample at capture if one is under 30 seconds old. The server stamps `server_received_at` on registration and compares the stored object's hash to the declared `sha256` before the service record is accepted; a mismatch is `GRND-422` with `details.fields = ['photos[n].sha256']`.
+Metadata the client must send with each photo: `taken_at` from the device clock at capture, and the freshest location sample at capture if one is under 30 seconds old. At finalize the server checks that each declared photo was registered by this user for this task, that the declared `sha256` matches the registered one, and that the object exists in the bucket; anything missing is `GRND-422` with `details.fields` such as `['photos.<id>.not_uploaded', 'photos.before']`. Comparing the stored bytes to the declared hash is a planned background job (`hash_verified_at`), not part of finalize.
 
 ### 7.2 `service_finalize`
 
@@ -380,8 +393,8 @@ args: { idempotency_key uuid, task_id uuid, expected_revision?: int,
         notes?: text,
         supersedes_photo_ids?: uuid[] }            -- photos to mark as replaced, never deleted
 data: { service_record_id uuid, task_id, revision, state 'review',
-        assessment: { result, distance_m, accuracy_m, zone_class },
-        evidence_event_seq int, row_hash text, verification_url text }
+        assessment: { result, distance_m, accuracy_m, zone_class, age_s },
+        evidence_event_seq int, row_hash text, verification_url text }     -- verification_url is a relative path until the export Edge Function ships
 errors: GRND-425 no open shift, GRND-410 task not in_progress, GRND-403 not the assignee,
         GRND-422 with details.fields naming any missing requirement from the task's evidence_required
         (for example ['photos.before', 'materials'] ), a completed_at earlier than started_at, or a hash mismatch,
@@ -392,7 +405,14 @@ What the server does in one transaction: verifies the caller, the shift, the tas
 
 `verification_url` is a link to the minimal evidence export for that one record (ADR decision 15), usable by a supervisor right away.
 
-### 7.3 `task_approve` (lead or admin)
+### 7.3 `evidence_verify`
+
+```
+supabase.rpc('evidence_verify', { p_record: service_record_id }) → { ok: true, events: n, head: hash } or { ok: false, bad_seq, why }
+```
+Recomputes the chain for one record. Anyone who can see the record can call it.
+
+### 7.4 `task_approve` (lead or admin)
 
 ```
 args: { idempotency_key uuid, task_id uuid, expected_revision?: int, note?: text }
@@ -449,7 +469,7 @@ data: { revision (new), mode, active_event_id }
 errors: GRND-403, GRND-409 if expected_revision is stale, GRND-422
 ```
 
-Clients must acknowledge a new revision by calling `operating_state_ack({ revision, device_id })` after they have applied it; the admin screen shows how many active devices are on the current revision. Active work is never hidden by a pivot (ADR decision 10).
+Clients must acknowledge a new revision by calling `operating_state_ack({ revision, device_id })` after they have applied it; `v_operating_state.devices_on_revision` counts acknowledgments in the last 12 hours. Pivoting to `snow` opens a weather event if none is active (named from `event.name` or the date); pivoting to `landscaping` closes the active event. Active work is never hidden by a pivot (ADR decision 10).
 
 ## 10. Offline, retry, and realtime
 
@@ -579,5 +599,6 @@ Do not build: anything that writes a table directly, any client-side geofence de
 | Version | Date | Change |
 |---|---|---|
 | 1.0 | 2026-09-07 | First publication. Nothing implemented yet; all items planned. |
+| 1.1 | 2026-09-07 | Everything in sections 2 to 10 implemented in migrations 0001 to 0009 and smoke tested. Changes from 1.0: photos upload directly to the registered path (no signed URL); `dispatch_candidates` wraps its list in `{ ok, data }`; `location_upload` returns `rejected_detail`; `evidence_verify`, `certification_verify`, `certification_suspend`, `shift_end_for`, `operating_state_ack`, and the reference views in 3.7 added; `task_unblock`, `task_cancel`, `task_approve` implemented as specified. Realtime wiring is in place but has not been exercised from a real client yet. |
 
 Proposed changes go in `docs/api-contract-changes.md` as a dated entry with the requesting assistant, the reason, and the proposed shape. Claude folds accepted changes into this document with a new version line above.

@@ -4,7 +4,7 @@ This repo is shared between Mason, Claude, and ChatGPT. Any of the three may edi
 
 ## What this is
 
-An interactive map for UND Facilities Management, Grounds (landscaping and snow removal). One HTML page (`index.html`) reads GeoJSON files in `data/` and draws them on a satellite or street basemap. The crew uses it on phones, the supervisor uses it on a laptop. There is no server, no database, no build framework.
+An interactive map for UND Facilities Management, Grounds (landscaping and snow removal). One HTML page (`index.html`) reads GeoJSON files in `data/` and draws them on a satellite or street basemap. The crew uses it on phones, the supervisor uses it on a laptop. The map itself has no build framework. The operations app behind it runs on Supabase (see docs/adr-001-architecture.md and docs/supabase-setup.md).
 
 ## Layout
 
@@ -31,6 +31,12 @@ docs/technical-blueprint-v0.1.md  Claude's blueprint (reference, corrected by th
 docs/technical-blueprint-codex-v0.2.md  Codex's blueprint (reference; Codex commits it from its checkout)
 docs/api-contract.md    THE client contract: functions, views, errors, offline rules, realtime. Codex builds against this and nothing else.
 docs/api-contract-changes.md  where to propose a contract change before building on it
+docs/supabase-setup.md  how the Supabase project is configured and the commands to migrate, seed, test, reset
+supabase/migrations/    the database, numbered SQL files, applied by tools/migrate.py (Claude's area per the ADR)
+tools/migrate.py        apply migrations to the project in .env
+tools/seed_supabase.py  load data/*.geojson into zones (versioned) and assets
+tools/smoke_test.py     end to end test with synthetic users
+.env                    secrets, never committed; .env.example shows the keys
 ```
 
 ## Project hub and checkouts
