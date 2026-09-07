@@ -2,6 +2,7 @@ id,name,asset_type,class,make,model,serial,required_capability_code,compatible_w
 EQ-278,278,machine,toolcat,Bobcat,Toolcat UW56,B4RC12495,TOOLCAT,,
 EQ-279,279,machine,toolcat,Bobcat,Toolcat 5600,AHG815928,TOOLCAT,,
 EQ-281,281,machine,toolcat,Bobcat,Toolcat 5610,B2LH11793,TOOLCAT,,
+EQ-277,277,machine,toolcat,Bobcat,Toolcat,,TOOLCAT,,Not on the Bobcat account; model and serial from the machine tag
 EQ-119,119,machine,mower_ztr,Bobcat,ZS4000,999400100875,MOWER_ZTR,,
 EQ-118,118,machine,mower_ztr,Bobcat,ZS4000,999400100874,MOWER_ZTR,,
 EQ-158,158,machine,tractor,Bobcat,CT2540,B4VR11416,TRACTOR,,
@@ -11,6 +12,7 @@ EQ-175,175,machine,loader,Bobcat,L85,B53C11462,BOBCAT,,
 EQ-75,75,machine,skid_steer,Bobcat,A300,539912246,BOBCAT,,
 EQ-415,415,machine,skid_steer,Bobcat,S76,B4CD15572,BOBCAT,,Nicknamed "My Skiddy" on the Bobcat account
 EQ-190,190,machine,skid_steer,Bobcat,S450,B4RH12842,BOBCAT,,
+EQ-315,315,machine,skid_steer,Bobcat,S550,,BOBCAT,,Not on the Bobcat account; serial from the machine tag
 EQ-182,182,machine,loader,Bobcat,L28,B4LD13151,BOBCAT,,
 EQ-40,40,machine,utv,Bobcat,UV34XL,B53722520,UTV,,
 EQ-18,18,machine,utv,Bobcat,UV34XL,B53740109,UTV,,
@@ -18,7 +20,7 @@ ATT-279B,279 broom,attachment,broom,Bobcat,Angle Broom,B4KZ01714,,EQ-279,
 ATT-281B,281 broom,attachment,broom,Bobcat,Angle Broom,B4KZ01727,,EQ-281,
 ATT-278B,278 broom,attachment,broom,Bobcat,Angle Broom,B4LR00752,,EQ-278,
 ATT-SPAREB,Spare broom,attachment,broom,Bobcat,Angle Broom,B4LR01601,,toolcat,
-ATT-277B,277 broom,attachment,broom,Bobcat,Angle Broom,B4LR02510,,,Unit 277 is not on the Bobcat account
+ATT-277B,277 broom,attachment,broom,Bobcat,Angle Broom,B4LR02510,,EQ-277,
 ATT-075B,075 broom,attachment,broom,Bobcat,Angle Broom,B4LR01609,,EQ-75,
 ATT-415B,415 broom,attachment,broom,Bobcat,Angle Broom,B4KZ02556,,EQ-415,
 ATT-190B,190 broom,attachment,broom,Bobcat,Angle Broom,B4KZ05111,,EQ-190,
