@@ -29,6 +29,8 @@ docs/product-brief-v0.1.md  ChatGPT/Codex product brief for the same app (P0/P1/
 docs/adr-001-architecture.md  THE accepted architecture decision. Read before any backend or app-shell work. Blueprints are references only.
 docs/technical-blueprint-v0.1.md  Claude's blueprint (reference, corrected by the ADR)
 docs/technical-blueprint-codex-v0.2.md  Codex's blueprint (reference; Codex commits it from its checkout)
+docs/api-contract.md    THE client contract: functions, views, errors, offline rules, realtime. Codex builds against this and nothing else.
+docs/api-contract-changes.md  where to propose a contract change before building on it
 ```
 
 ## Project hub and checkouts
