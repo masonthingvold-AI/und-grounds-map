@@ -1,4 +1,4 @@
-# API contract v1.3: UND Grounds operations platform
+# API contract v1.4: UND Grounds operations platform
 
 Status: v1.0 published September 7, 2026; v1.1 the same day once migrations 0001 to 0009 were applied; v1.2 with migration 0010 (Mason's policy decisions and the answers to Codex's review in `docs/api-contract-changes.md`). Smoke test: 68 checks. Owner: Claude (database, functions, views). Consumer: Codex (worker app, dispatch screens).
 Governs: everything the client is allowed to call. If a screen needs something not in this document, ask for it in `docs/api-contract-changes.md` rather than inventing a query.
@@ -22,7 +22,7 @@ Live on the Supabase project `und-grounds` (URL and anon key are in the Mac chec
 | `zone_status_set`, `v_zone_status_current`, `operating_state_pivot`, `operating_state_ack`, `v_operating_state`, `v_weather_events` (sections 8, 9) | implemented | 0008 |
 | Realtime broadcasts from the outbox, `postgres_changes` on four tables (section 10) | implemented, not yet exercised from a real client | 0009 |
 | Certification requests and approvals, full-time defaults, oversight may direct work, Temp 2 handoff rule, `original_assignee`, external work order refs, `day_log`, `time_entries_confirm` (sections 2, 3.8, 4, 6, 11) | implemented | 0010 |
-| Campus events from calendar.und.edu: `v_campus_events`, `v_event_reminders`, `event_watch`, `event_reminder_ack`, daily sync and reminder ladder (section 12) | implemented | 0011 |
+| Campus events from calendar.und.edu and fightinghawks.com: `v_campus_events`, `v_event_reminders`, `v_event_sync_health`, `event_watch`, `event_reminder_ack`, daily sync, reminder ladder, sync alerts (section 12) | implemented | 0011, 0012 |
 | Push notifications, weather Edge Function, evidence export Edge Function, photo hash verification job | planned | |
 | Asset checkout screens, maintenance log, barcode, route guidance | not in this version | |
 
@@ -623,22 +623,25 @@ All people, tasks, and events below are made up. Zone IDs match the current GeoJ
   "capabilities": ["SMALL_TOOLS", "SALT_SPREADER"], "hours_today": null, "hours_week": null, "availability": "free" }
 ```
 
-## 12. Campus events and planning reminders (v1.3)
+## 12. Campus events and planning reminders (v1.4)
 
-The database pulls the public UND events calendar (calendar.und.edu, Localist API) every morning at 6:00 Central with pg_cron and pg_net, keeps a year ahead, and places each event near a campus zone when its venue has coordinates. Events that grounds should plan for are flagged `watch`: by rule at import (outdoor and stadium venues, large public venues like the Alerus Center and Chester Fritz, home athletics, and titles such as commencement, homecoming parade, tailgate, move-in, open house), and by a lead or admin at any time. A person's choice always wins over the rule. Hockey and most athletics live on a separate calendar and are not in this feed yet.
+Two feeds, pulled every morning at 6:00 Central by pg_cron and pg_net, kept a year ahead: the UND events calendar (calendar.und.edu, Localist JSON, `source = 'und'`) and UND Athletics (fightinghawks.com iCal, `source = 'ath'`, every sport including hockey). Athletics rows carry `sport` and `home`; venues are matched to campus points through `event_venues` so home games at REA, the Betty, Bronson Field, Albrecht Field, and Hyslop land on the map, and `on_campus` says whether the venue is UND ground (the Alerus Center is not).
 
-Watched events get a reminder ladder: 30, 21, 14, 7, 5, 3, 2, 1 days before, the day of, and the day after. Each reminder is raised once, as a broadcast `event_reminder` on `all` with `{ reminder_id, event_id, days_before, message, starts_at, zone_id }`, and stays open in `v_event_reminders` until a lead or admin acknowledges it.
+`watch` means grounds should plan for it. A rule sets it at import: every home game on campus, home football at the Alerus (flagged with that reason so it can be cleared), outdoor and stadium venues, large public venues, and titles such as commencement, homecoming parade, tailgate, move-in, open house. A lead, admin, or oversight can flip any event either way and their choice survives every later sync.
+
+Watched events get reminders at 30, 21, 14, 7, 5, 3, 2, 1 days before, the day of, and the day after. Each is raised once as broadcast `event_reminder` on `all` with `{ reminder_id, event_id, days_before, message, starts_at, zone_id }` and stays open in `v_event_reminders` until acknowledged. If a feed has not synced successfully for two days, `event_sync_failed` is broadcast once a day and `v_event_sync_health` shows the last error.
 
 ```
-v_campus_events:   event_id, title, url, description, venue_name, address, location (GeoJSON point), zone_id, zone_name, starts_at, ends_at, all_day,
-                   first_date, last_date, audience text[], topics text[], experience, watch, watch_reason, watch_set_by_name, notes, work_order_id, work_order_number,
-                   days_until int, next_reminder_on date, last_synced_at         -- upcoming only; filter watch=eq.true for the planning list
-v_event_reminders: reminder_id, event_id, title, venue_name, zone_id, starts_at, days_before, due_on, raised_at, acknowledged_at, acknowledged_by_name, open
-event_watch:       { idempotency_key, event_id, watch: boolean, reason?, notes?, work_order_id? } → { event_id, watch, title }      lead, admin, oversight
-event_reminder_ack:{ idempotency_key, reminder_id } → { reminder_id }                                                              lead, admin, oversight
+v_campus_events:     event_id text ('und:<id>' or 'ath:<uid>'), source, title, url, description, sport, home, venue_name, address, location (GeoJSON point), on_campus,
+                     zone_id, zone_name, starts_at, ends_at, all_day, first_date, last_date, audience text[], topics text[], watch, watch_reason, watch_set_by_name,
+                     notes, work_order_id, work_order_number, days_until int, next_reminder_on date, last_synced_at     -- upcoming only
+v_event_reminders:   reminder_id, event_id, source, title, venue_name, zone_id, starts_at, days_before, due_on, raised_at, acknowledged_at, acknowledged_by_name, open
+v_event_sync_health: source, last_success, last_error_at, last_error, active_events
+event_watch:         { idempotency_key, event_id text, watch boolean, reason?, notes?, work_order_id? } → { event_id, watch, title }     lead, admin, oversight
+event_reminder_ack:  { idempotency_key, reminder_id } → { reminder_id }; GRND-410 if already acknowledged                        lead, admin, oversight
 ```
 
-Suggested screens: a Planning list (watched events by date with days_until and notes, a Watch toggle on any event, a link to create the prep task with `task_create` and attach it via `work_order_id`), and an Open reminders strip on the dispatch board (`v_event_reminders?open=eq.true`).
+Suggested screens: Planning (watched events by date with `days_until`, notes, a Watch toggle on any event, a button that calls `task_create` for the prep work and passes the result back through `event_watch.work_order_id`), an Open reminders strip on the dispatch board (`v_event_reminders?open=eq.true`), and the sync health line under Admin.
 
 ## 13. What Codex can build now
 
@@ -651,6 +654,7 @@ Do not build: anything that writes a table directly, any client-side geofence de
 | Version | Date | Change |
 |---|---|---|
 | 1.0 | 2026-09-07 | First publication. Nothing implemented yet; all items planned. |
+| 1.4 | 2026-09-07 | Migration 0012: events rebuilt for two sources, athletics iCal (all sports, hockey included) with venue matching, sync health alerts, event ids are text. Smoke test 83 checks. |
 | 1.3 | 2026-09-07 | Migration 0011: campus events from calendar.und.edu with watch flags, reminder ladder, daily sync. Section 12. |
 | 1.2 | 2026-09-07 | Migration 0010. Certification approval flow with training outcomes, full-time defaults (all but CDL), no qualification override anywhere; Temp 2 to Temp 1 handoff only in landscaping mode; `original_assignee` and full handoff chain on every task; oversight may create, assign, reassign, release; external work order references on tasks and work orders; `day_log` in `shift_end`, `time_entries_confirm`, `v_time_entries`; originals uploaded not derivatives; evidence read rule; secure native storage wording; offline queue rules 9 to 12 answering Codex's review. |
 | 1.1 | 2026-09-07 | Everything in sections 2 to 10 implemented in migrations 0001 to 0009 and smoke tested. Changes from 1.0: photos upload directly to the registered path (no signed URL); `dispatch_candidates` wraps its list in `{ ok, data }`; `location_upload` returns `rejected_detail`; `evidence_verify`, `certification_verify`, `certification_suspend`, `shift_end_for`, `operating_state_ack`, and the reference views in 3.7 added; `task_unblock`, `task_cancel`, `task_approve` implemented as specified. Realtime wiring is in place but has not been exercised from a real client yet. |
