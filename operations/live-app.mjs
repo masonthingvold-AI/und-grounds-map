@@ -1,3 +1,4 @@
+import {taskCards,taskDetail,fieldError} from './worker.mjs';
 import {client,login,signOut,readView,rpc} from './api.mjs';
 import {mountShell} from './shell.mjs';
 import {showMap,clearMap,showMessages,dashboard} from './views.mjs';
@@ -17,12 +18,18 @@ async function enter(){
 }
 async function refresh(){const values=await Promise.all([readView('v_my_shift'),readView('v_operating_state')]);shift=values[0][0]||null;mode=values[1][0]||{};}
 function showError(e){if(['401','GRND-401'].includes(e.code)){signOut();loginScreen('Your session ended. Sign in again.');}else notify(e.message);}
+async function act(fn,args){const result=await rpc(fn,{...args,idempotency_key:crypto.randomUUID()});await refresh();await render();return result;}
+const onLocation=async location=>{if(!shift)throw Error('Start your shift before starting work.');return rpc('location_upload',{idempotency_key:crypto.randomUUID(),shift_id:shift.shift_id,samples:[location]});};
 async function render(){
  if(!me)return;const version=++epoch;clearMap();history.replaceState(null,'','#'+route);updateShell();$('#content').innerHTML='<p class="muted">Loading</p>';
  if(route==='settings'){$('#content').innerHTML=`<h1>Your account</h1><article class="card"><h2>${esc(me.full_name)}</h2><p>${esc(me.app_role)} · ${esc(me.crew_name||'No crew')}</p><p class="muted">Signed in through Supabase Auth. Session refresh is automatic.</p></article>`;return;}
  if(route==='map'){await showMap($('#content'));return;}
  if(['messages','crew-lead'].includes(route)){showMessages($('#content'),route==='crew-lead');return;}
- if(route==='day'){$('#content').innerHTML=`<h1>My Day</h1><p>Welcome, ${esc(me.full_name)}.</p><p class="muted">Your live profile is connected. Task controls are being connected next.</p>`;return;}
+ if(route==='day'){
+ tasks=await readView('v_my_day',{},'sort_key');if(version!==epoch)return;updateShell();
+ $('#content').innerHTML=`<h1>My Day</h1><p>Welcome, ${esc(me.full_name)}.</p>${taskCards(tasks)}`;
+ document.querySelectorAll('[data-task]').forEach(b=>b.onclick=()=>taskDetail(b.dataset.task,{read:readView,act,me,onLocation,proof:()=>notify('Completion form is being connected.')}));return;
+ }
  $('#content').innerHTML='<h1>Workspace</h1><p class="muted">This screen is being connected to the live contract.</p>';
 }
 const {data:{session}}=await client.auth.getSession();

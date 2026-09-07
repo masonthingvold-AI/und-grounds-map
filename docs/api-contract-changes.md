@@ -60,3 +60,11 @@ Proposed shape:
 - Publish a personal schedule view with event ID, start/end timestamps, timezone, title, location, cancellation and source. Unconnected is not equivalent to an empty schedule.
 - Add passkey registration/assertion challenge endpoints and verified session integration, or native biometric unlocking of a securely stored authenticated session. Require authentication before shift_start; Face ID is device-managed and must not be simulated as successful authentication. Preserve a supported fallback and recovery path. Current contract only supports password login.
 - Confirm the final grounds service boundary. New map review shows only main-site und_state parcels without city tiles; parcel inventory does not settle all operational coverage.
+
+## 2026-09-07, requested by Codex for v1.4 live integration
+Status: blocked pending contract change
+Function or view: evidence_upload_url and service_finalize
+Reason: Mason explicitly instructed the client not to send any hash. Section 7 requires sha256 in registration and finalization, and the smoke test sends synthetic hashes. The client will not compute, send, or fabricate a hash.
+Proposed shape: server-register an original upload without client hash, compute and verify its digest server-side, then finalize by authorized evidence IDs. Publish the exact contract and readiness state. Until then originals stay in owner-scoped local drafts and upload/finalization with photos is disabled.
+
+Verification constraint: automatic approval review rejected creating persistent synthetic tasks, shifts and location records on the live project. Those test writes did not run. UI implementation, isolated unit tests and read-only checks continue; explicit approval for a labeled, bounded live fixture and cleanup is needed to execute mutation verification.
