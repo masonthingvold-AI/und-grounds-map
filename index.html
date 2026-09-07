@@ -709,7 +709,7 @@
     if(l.feature.geometry.type === "Polygon") l.feature.properties.drawn_acres = +geodesicAcres(l.feature.geometry.coordinates[0]).toFixed(2);
     if(traced) l.feature.properties.needs_tracing = false;
     markDirty(); if(l.setStyle) l.setStyle(Object.assign({}, styleFor(selected.layerKey, l.feature), {weight:4, color:"#111"}));
-    updateEditStatus();
+    placeLabel(l); updateEditStatus();
   }
   const evLatLng = e => e.latlng || (e.touches && e.touches[0] ? map.mouseEventToLatLng(e.touches[0]) : null);
   function dragStart(e){
@@ -725,8 +725,9 @@
     if(e.preventDefault) e.preventDefault();
     const dLat = ll.lat - dragState.start.lat, dLng = ll.lng - dragState.start.lng;
     const shift = a => Array.isArray(a) ? a.map(shift) : L.latLng(a.lat + dLat, a.lng + dLng);
-    selected.layer.setLatLngs(shift(dragState.orig));
+    selected.layer.setLatLngs(shift(dragState.orig)); placeLabel(selected.layer);
   }
+  function placeLabel(l){ const t = l.getTooltip && l.getTooltip(); if(t && t.options.permanent && l.getBounds) t.setLatLng(l.getBounds().getCenter()); }
   function dragEnd(){
     if(!dragState) return; dragState = null; map.dragging.enable();
     map.off("mousemove", dragMove); map.off("mouseup", dragEnd);
@@ -737,7 +738,7 @@
   function startShapeTool(t){
     stopShapeTool(); if(!selected || !selected.layer.getLatLngs) return;
     const l = selected.layer; shapeTool = t;
-    if(t === "trace"){ if(l.editing){ l.editing.enable(); l.on("edit", onVertexEdit); } }
+    if(t === "trace"){ if(L.Edit && L.Edit.Poly){ l.editing = new L.Edit.Poly(l); l.editing.enable(); l.on("edit", onVertexEdit); } }
     else { l.on("mousedown", dragStart); if(l._path) l._path.addEventListener("touchstart", dragStart, {passive:false}); }
   }
   function stopShapeTool(){
