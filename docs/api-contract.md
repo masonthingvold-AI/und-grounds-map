@@ -1,6 +1,6 @@
-# API contract v1.1: UND Grounds operations platform
+# API contract v1.2: UND Grounds operations platform
 
-Status: v1.0 published September 7, 2026; v1.1 the same day once migrations 0001 to 0009 were applied and the smoke test passed. Owner: Claude (database, functions, views). Consumer: Codex (worker app, dispatch screens).
+Status: v1.0 published September 7, 2026; v1.1 the same day once migrations 0001 to 0009 were applied; v1.2 with migration 0010 (Mason's policy decisions and the answers to Codex's review in `docs/api-contract-changes.md`). Smoke test: 68 checks. Owner: Claude (database, functions, views). Consumer: Codex (worker app, dispatch screens).
 Governs: everything the client is allowed to call. If a screen needs something not in this document, ask for it in `docs/api-contract-changes.md` rather than inventing a query.
 Depends on: `docs/adr-001-architecture.md`. Where this document and the ADR disagree, the ADR wins and this document gets fixed.
 
@@ -21,6 +21,7 @@ Live on the Supabase project `und-grounds` (URL and anon key are in the Mac chec
 | `evidence_upload_url`, `service_finalize`, `task_approve`, `evidence_verify`, `v_service_records`, storage bucket `evidence` (section 7) | implemented | 0007 |
 | `zone_status_set`, `v_zone_status_current`, `operating_state_pivot`, `operating_state_ack`, `v_operating_state`, `v_weather_events` (sections 8, 9) | implemented | 0008 |
 | Realtime broadcasts from the outbox, `postgres_changes` on four tables (section 10) | implemented, not yet exercised from a real client | 0009 |
+| Certification requests and approvals, full-time defaults, oversight may direct work, Temp 2 handoff rule, `original_assignee`, external work order refs, `day_log`, `time_entries_confirm` (sections 2, 3.8, 4, 6, 11) | implemented | 0010 |
 | Push notifications, weather Edge Function, evidence export Edge Function, photo hash verification job | planned | |
 | Asset checkout screens, maintenance log, barcode, route guidance | not in this version | |
 
@@ -74,7 +75,7 @@ Anything without a `GRND-` prefix is a PostgREST or network error and follows th
 
 **Auth.** Supabase Auth, email and password for the pilot. UND SSO is a production gate (ADR 17) and will replace the password flow without changing anything below; the client only ever holds the Supabase session.
 
-**Session.** The client stores the Supabase session (access and refresh token) in the platform keychain through Capacitor Preferences, not in localStorage on native. Refresh is automatic in the JS client. A `401` from any call means refresh failed; sign the user out and keep the offline queue intact so it replays after the next login by the same user. A queue from user A is discarded if user B logs in on the device.
+**Session.** On the web the client keeps the Supabase session in localStorage. On native it uses a secure storage plugin (iOS Keychain, Android Keystore, for example `capacitor-secure-storage-plugin`); Capacitor Preferences is plain storage and is not acceptable for tokens. Two adapters, one interface. Refresh is automatic in the JS client. A `401` from any call means refresh failed; sign the user out and keep the offline queue intact so it replays after the next login by the same user. A queue from user A is discarded if user B logs in on the device.
 
 **Profile.** Every auth user has exactly one `profiles` row, created by an admin (there is no self sign-up). On login the client reads `v_me`:
 
@@ -87,7 +88,7 @@ v_me: id, full_name, phone, employment_tier, app_role, crew_id, crew_name, repor
 
 | app_role | Who | employment_tier values |
 |---|---|---|
-| `oversight` | Chad's supervisor. Reads everything, writes nothing operational | `oversight` |
+| `oversight` | Chad's supervisor. Sees everything on the map and the board, and may create, assign, reassign, and release work (Mason, Sep 7) | `oversight` |
 | `admin` | Chad, Bobby, Mason | `admin` |
 | `lead` | full-time employees who run a crew | `full_time` |
 | `worker` | Temp 2, Temp 1 | `temp2`, `temp1` |
@@ -99,13 +100,14 @@ v_me: id, full_name, phone, employment_tier, app_role, crew_id, crew_name, repor
 | Action | oversight | admin | lead | worker |
 |---|---|---|---|---|
 | read all tasks and people | yes | yes | own crew only | own tasks only |
-| create task | no | yes | yes, within own crew's zones | no |
-| assign, reassign, release | no | anyone | own crew members only, and Temp 2 may delegate to Temp 1 on the same task | no |
+| create task | yes | yes | yes, within own crew's zones | no |
+| assign, reassign, release | anyone | anyone | own crew members only | Temp 2 may hand their own task to a Temp 1 on the same crew, only while the operating mode is `landscaping` (GRND-403 in `snow`); the certification check still applies |
 | acknowledge assignment | no | self | self | self |
 | start, block, finalize task | no | self | self | self |
 | shift start and end, location upload | no | self | self | self |
 | set zone status | no | yes | own crew's zones | on an assigned task only |
-| verify certification | no | any capability | capabilities with `granted_by_tier = 'full_time'` only | no |
+| request certification | yes | yes | own crew | self |
+| approve or deny certification | no | yes | no | no |
 | pivot operating state | no | yes | no | no |
 | open, close keep-out | no | yes | yes | no |
 
@@ -211,13 +213,23 @@ Sections 8 and 9.
 
 `v_zones` (every zone with its current geometry as GeoJSON, `acres_drawn`, `needs_tracing`, `keepout_reason`), `v_keepouts`, `v_assets` (with who holds a reservation right now), `v_service_records` (the record with its evidence list, `event_count`, `head_hash`), `v_weather_events`, `v_capabilities`. All read-only, RLS filtered.
 
-### 3.8 Certifications
+### 3.8 Certifications (approval process, v1.2)
+
+Every capability carries `outcomes` (a list of training outcomes, see `v_capabilities`). A person is certified only through an approved request or a full-time default. There is no override anywhere: `task_assign` and `assignment_reassign` raise `GRND-423` for a missing capability no matter who calls, and the `override_qualification` argument is accepted for compatibility and ignored.
 
 ```
-certification_verify:  { idempotency_key, profile_id, capability_code, expires_at?, restrictions?, notes? } → { certification_id, profile_id, capability_code }
-certification_suspend: { idempotency_key, profile_id, capability_code, reason }                            → { profile_id, capability_code, suspended: true }
+certification_request: { idempotency_key, profile_id, capability_code, outcomes_met: text[] (every outcome in v_capabilities.outcomes), notes? }
+                       → { request_id, status: 'pending', capability_code }
+                       errors: GRND-422 with details.missing listing outcomes not attested; GRND-410 if a request is already pending; GRND-403
+                       who: the person, their lead, admin, oversight
+certification_decide:  { idempotency_key, request_id, approve: boolean, decision_notes?, expires_at?, restrictions? }
+                       → { request_id, status: 'approved'|'denied', certification_id, capability_code }      admin only
+certification_suspend: { idempotency_key, profile_id, capability_code, reason } → { suspended: true }      admin, or lead for full_time-tier capabilities on own crew
+certification_verify:  kept for admins (direct grant with no request), same shape as v1.1
+v_certification_requests: request_id, profile_id, full_name, capability_code, capability_name, outcomes_required, outcomes_met, requested_by_name, notes, status, decided_by_name, decided_at, decision_notes, expires_at, created_at
 ```
-Admins verify any capability; leads only those with `granted_by_tier = 'full_time'` and only for their own crew (GRND-403 otherwise). The master list is seeded in migration 0002 as a starting point for Chad and Bobby to edit.
+
+Full-time employees (`employment_tier = 'full_time'`) automatically hold every capability with `auto_for_full_time = true`, which is everything except `CDL`, from the moment their profile exists. Those rows have `source = 'full_time_default'`. Broadcasts: `certification_requested` on `all`, `certification_approved` and `certification_denied` on `person:<id>`.
 
 ## 4. Shifts
 
@@ -235,9 +247,22 @@ A shift belongs to the caller. One open shift per person is an exclusion constra
 
 ```
 args: { idempotency_key uuid, shift_id uuid, location?: {...}, note?: text }
-data: { shift_id, started_at, ended_at, duration_minutes numeric, open_task_ids uuid[] }
+data: { shift_id, started_at, ended_at, duration_minutes numeric, open_task_ids uuid[], day_log: {...} }
 errors: GRND-404, GRND-410 if already ended
 ```
+
+`day_log` (v1.2) is the end-of-day screen: `{ shift_id, started_at, ended_at, shift_minutes, tasks: [{ task_id, work_order_id, work_order_number, work_order_title, external_system, external_ref, external_url, zone_id, zone_name, task_type, state, started_at, ended_at, suggested_minutes }], zones: [{ zone_id, zone_name, samples, minutes }], confirmed: [...] }`. `tasks` is every task the person started during the shift with its work order and external ticket; `zones` is minutes per zone from GPS samples (gaps over 5 minutes are not counted). The same object is available any time from `day_log({ shift_id })` for the worker, their lead, or an admin.
+
+The worker confirms it (ADR decision 12, confirmed not inferred):
+
+```
+time_entries_confirm: { idempotency_key, shift_id, entries: [{ task_id?, work_order_id?, zone_id?, external_ref?, minutes int, suggested_minutes?, note? }] }
+                      → { shift_id, entries int, minutes int }
+                      errors: GRND-422 empty entries; GRND-410 already confirmed for this shift; GRND-403
+v_time_entries: id, profile_id, full_name, shift_id, work_order_id, work_order_number, external_system, external_ref, task_id, zone_id, minutes, suggested_minutes, note, confirmed_at
+```
+
+The client shows the suggested minutes, lets the worker edit, and submits once. Edits after confirmation are a supervisor correction (planned).
 
 Ending a shift does not release assignments; `open_task_ids` tells the client to warn. Leads and admins can end another person's shift with `shift_end_for` (same args plus `profile_id`), used when a phone dies.
 
@@ -285,12 +310,14 @@ args: { idempotency_key uuid, work_order_id?: uuid, zone_id text, zone_version_i
         required_capabilities?: text[] (codes), required_asset_class?: text,
         scheduled_start?: timestamptz, scheduled_end?: timestamptz,
         evidence_required?: text[] (default derived from task_type: snow actions require photo_before, photo_after, material_qty, location; mow requires photo_after, location),
-        point?: { lng, lat } }
-data: { task_id uuid, revision 1, state 'unassigned', work_order_number text }
+        point?: { lng, lat },
+        external_ref?: { system: text, ref: text, url?: text } }     -- the ticket in the other work order system (v1.2)
+data: { task_id uuid, revision 1, state 'unassigned', work_order_number text, work_order_id uuid, external_ref text }
+who: admin, oversight, lead (own crew's zones)
 errors: GRND-403, GRND-404 zone, GRND-422, GRND-426 if the zone has an active keep-out and task_type is not an admin task
 ```
 
-If `work_order_id` is omitted the function creates a work order titled from `outcome` so every task has a human number.
+If `work_order_id` is omitted the function creates a work order titled from `outcome` so every task has a human number. `work_order_link_external({ idempotency_key, work_order_id, external_system, external_ref, external_url? })` attaches or changes the external ticket later (lead, admin, oversight). `v_task_detail`, `v_my_day`, and `v_dispatch_board` carry `external_system`, `external_ref`, `external_url`, and `original_assignee_id` / `original_assignee_name` (the first person assigned; never changes on reassign), and `assignment_history` entries carry `assigned_by_name` and `reassigned_from` so the full handoff chain is visible.
 
 ### `task_assign`
 
@@ -361,7 +388,7 @@ Blocking releases nothing; the assignment stays so the supervisor knows who hit 
 
 Photos never go through a database function. They go to Supabase Storage, and the record of them goes through `service_finalize`.
 
-1. Client captures the photo, downsizes to a maximum of 1600 px on the long edge, JPEG quality 0.8 (target 200 to 400 KB), computes `sha256` of the bytes, and generates a `client_photo_id` (UUID v4).
+1. Client captures the photo and uploads the original bytes (ADR decision 8: originals are never replaced by derivatives). Accepted types: JPEG, PNG, HEIC; 8 MB limit per object. The client may make a smaller derivative for its own display but never uploads it in place of the original. It computes `sha256` of the original bytes and generates a `client_photo_id` (UUID v4).
 2. Client calls `evidence_upload_url` (the name is kept from v1.0; it registers the object and returns its path, there is no signed URL):
 
 ```
@@ -404,6 +431,10 @@ errors: GRND-425 no open shift, GRND-410 task not in_progress, GRND-403 not the 
 What the server does in one transaction: verifies the caller, the shift, the task state, and each declared photo against Storage; computes the location assessment; inserts the `service_records` row; inserts one `evidence_events` row per photo and one for the record itself, each with its per-record sequence number and hash chained to the previous event for that record (ADR decision 8); appends a material transaction per line when materials ship; moves the task to `review`; writes the outbox event. The client never sends a hash, a sequence number, or an assessment.
 
 `verification_url` is a link to the minimal evidence export for that one record (ADR decision 15), usable by a supervisor right away.
+
+### 7.2b Reading evidence
+
+A photo is read with `supabase.storage.from('evidence').createSignedUrl(path, 3600)` (or `download(path)`); the bucket's select policy allows it only for people who can see the task, so no extra authorization call is needed. Signed URLs expire; never store one.
 
 ### 7.3 `evidence_verify`
 
@@ -485,7 +516,10 @@ The worker app keeps a durable FIFO queue of commands `{ id, fn, args (with idem
 6. On `GRND-422`, keep the command, show the fields, let the user fix them, and resubmit with the same idempotency key.
 7. Photos upload independently of the queue; `service_finalize` waits in the queue until every photo it references has uploaded.
 8. `location_upload` is its own queue with a cap: keep the newest 2,000 samples, drop older ones with a local note. It never blocks the command queue.
-9. Identity: the queue is keyed to the user ID. A different user logging in on the device discards it after warning.
+9. Identity: the queue is keyed to the user ID. When a different user signs in, the previous user's queue and drafts are kept on the device but quarantined: never shown to the new user, never sent under their session, replayed only when the original user signs in again. Deletion is explicit (that user, or a device reset), never automatic.
+10. Dependencies: commands on the same task are a chain. Each successful command returns `revision`; the client stores it and uses it as `expected_revision` for the next queued command on that task. If a supervisor changed the task in between, the next command gets `GRND-409` and the chain stops for review; it is never auto-resolved. One outstanding command per task is acceptable and simpler.
+11. Ordering per person: `shift_end` is queued after every task command captured during the shift, so an offline finalize replays before the shift closes. If a finalize is rejected, the evidence stays on the device in a "needs review" state and the worker or lead deals with it the next day; nothing is deleted.
+12. Idempotency lifetime: keys are stored for 30 days. A queued command older than that is replayed with the same key; if the server no longer remembers it, it runs as new, which is correct for commands that were never received. Never change a queued command's payload after it is created; if the user edits, make a new command with a new key. Failed validation is not stored, so fixing a `GRND-422` and resubmitting with the same key runs the command.
 
 ### Realtime
 
@@ -599,6 +633,7 @@ Do not build: anything that writes a table directly, any client-side geofence de
 | Version | Date | Change |
 |---|---|---|
 | 1.0 | 2026-09-07 | First publication. Nothing implemented yet; all items planned. |
+| 1.2 | 2026-09-07 | Migration 0010. Certification approval flow with training outcomes, full-time defaults (all but CDL), no qualification override anywhere; Temp 2 to Temp 1 handoff only in landscaping mode; `original_assignee` and full handoff chain on every task; oversight may create, assign, reassign, release; external work order references on tasks and work orders; `day_log` in `shift_end`, `time_entries_confirm`, `v_time_entries`; originals uploaded not derivatives; evidence read rule; secure native storage wording; offline queue rules 9 to 12 answering Codex's review. |
 | 1.1 | 2026-09-07 | Everything in sections 2 to 10 implemented in migrations 0001 to 0009 and smoke tested. Changes from 1.0: photos upload directly to the registered path (no signed URL); `dispatch_candidates` wraps its list in `{ ok, data }`; `location_upload` returns `rejected_detail`; `evidence_verify`, `certification_verify`, `certification_suspend`, `shift_end_for`, `operating_state_ack`, and the reference views in 3.7 added; `task_unblock`, `task_cancel`, `task_approve` implemented as specified. Realtime wiring is in place but has not been exercised from a real client yet. |
 
 Proposed changes go in `docs/api-contract-changes.md` as a dated entry with the requesting assistant, the reason, and the proposed shape. Claude folds accepted changes into this document with a new version line above.

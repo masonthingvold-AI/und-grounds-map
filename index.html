@@ -58,6 +58,11 @@
   .leaflet-container{font:inherit}
   .lbl{background:transparent;border:0;box-shadow:none;font:600 11px/1 Oswald,Arial,sans-serif;color:#fff;text-shadow:0 0 3px #000,0 0 3px #000;white-space:nowrap}
   .banner{background:#fff4d6;color:#7a5a00;padding:8px 14px;font-size:12px;border-bottom:1px solid #f0e0b0}
+  .chip{background:#fff;color:var(--deep);border-radius:10px;padding:3px 9px;font:600 11px Oswald,Arial,sans-serif;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+  .chip.snow{background:#D7263D;color:#fff}
+  .pdot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);margin-right:6px}
+  .pdot.stale{background:#F2B134;box-shadow:none}
+  .lbl.person{color:#fff;text-shadow:0 0 3px #1a73e8,0 0 3px #1a73e8}
   #tabbar{display:none}
   @media (max-width:820px){
     :root{--sidebar:0px}
@@ -92,6 +97,8 @@
     <h1>UND Grounds Map</h1>
     <span class="sub" id="subtitle">Landscaping and snow removal</span>
     <span class="spacer"></span>
+    <span class="chip" id="liveChip" hidden></span>
+    <button id="btnLive" title="Sign in for live status" hidden>Sign in</button>
     <button id="btnLocate" title="Show where I am">Where am I</button>
     <button id="btnEdit" title="Draw and edit shapes">Edit mode</button>
     <button id="btnPrint" title="Print the current view">Print</button>
@@ -103,6 +110,7 @@
       <button data-tab="find">Find</button>
       <button data-tab="detail">Selected</button>
       <button data-tab="work">Work</button>
+      <button data-tab="live">Live</button>
     </div>
     <div class="banner" id="draftBanner">Draft geometry. Shapes flagged <span class="flag">needs tracing</span> are placeholders until redrawn on the imagery.</div>
 
@@ -139,6 +147,11 @@
       </div>
       <input type="file" id="fileWork" accept="application/json" hidden>
       <div id="workSummary" class="muted" style="margin-top:10px"></div>
+    </section>
+
+    <section data-tab="live" id="livePanel" hidden>
+      <h2>Live</h2>
+      <div id="liveBody"></div>
     </section>
 
     <section data-tab="layers" id="editPanel" hidden>
@@ -211,10 +224,25 @@
   const tierColors = config.snow_tier_colors || {};
   const typeIcons = {facility:"#00722F", material_storage:"#B8860B", equipment:"#2E86AB", hydrant:"#D7263D", salt_box:"#F46036", irrigation:"#1F9E89", tree:"#3F7D20", other:"#6b6f68"};
   const parcelColors = config.parcel_owner_colors || {};
+  const liveStatus = {};   // zone_id -> {cleared:{...}, salted:{...}, keepout:{...}} from Supabase, filled by refreshLive()
+  let opState = null;      // v_operating_state row, set by refreshLive()
   function styleFor(layerKey, f){
     const p = f.properties || {};
     const w = work[p.id] || {};
     const dash = p.needs_tracing ? "6 4" : null;
+    const ls = liveStatus[p.id];
+    if(ls && (layerKey==="snow_routes" || layerKey==="mowing_areas" || layerKey==="boundary")){
+      if(ls.keepout) return {color:"#D7263D", weight:3, dashArray:"4 4", fillColor:"#D7263D", fillOpacity:.25};
+      const snow = opState && opState.mode==="snow";
+      const fresh = k => ls[k] && !ls[k].stale;
+      let c = null;
+      if(snow){ if(fresh("cleared") && (fresh("salted")||fresh("sanded"))) c = "#009A44"; else if(fresh("cleared")) c = "#5DBB63"; else if(fresh("salted")||fresh("sanded")) c = "#2E86AB"; }
+      else if(fresh("mowed")) c = "#009A44";
+      if(c){
+        if(layerKey==="snow_routes" && p.kind==="walk_route") return {color:c, weight:6, opacity:.95, dashArray:null};
+        return {color:c, weight:2, fillColor:c, fillOpacity:.45, dashArray:null};
+      }
+    }
     if(layerKey==="parcels"){
       const c = parcelColors[p.owner_class] || parcelColors.other || "#AEAEAE";
       return {color:c, weight:1.5, opacity:.9, fillColor:c, fillOpacity:.10, dashArray:null};
@@ -369,7 +397,7 @@
       </div>`}
       ${w.at?`<div class="muted" style="margin-top:6px">Last update ${new Date(w.at).toLocaleString()} by ${w.who||"unknown"}</div>`:""}
       ${editMode?`<div id="propsEditor"></div>`:""}`;
-    if(editMode) renderPropsEditor();
+    if(editMode) renderPropsEditor(); else renderLiveDetail(p);
     const save = (status) => {
       work[id] = {status: status || detail.querySelector("#wStatus").value, note: detail.querySelector("#wNote").value.trim(), who: detail.querySelector("#wWho").value.trim(), at: new Date().toISOString(), name:p.name, layer:selected.layerKey};
       try{ localStorage.setItem("und-grounds-who", work[id].who); }catch(e){}
@@ -640,6 +668,123 @@
     return {type:"other", status:"ok", notes:""};
   }
 
+  // ------------------------------------------------------------- live (Supabase)
+  // Reads config.supabase {url, anon_key}. The anon key is public by design; Row Level Security decides what a
+  // signed-in person can see. Opened without network or without config.supabase, everything here stays off.
+  const SB = config.supabase && config.supabase.url ? config.supabase : null;
+  const SESSION_KEY = "und-grounds-session";
+  let session = null; try{ session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); }catch(e){}
+  let me = null, livePeople = [], liveAt = null, liveErr = "";
+  const keepoutGroup = L.featureGroup(), peopleGroup = L.featureGroup();
+  const liveChip = document.getElementById("liveChip"), btnLive = document.getElementById("btnLive"), liveBody = document.getElementById("liveBody");
+  function setSession(j){ session = j; try{ j ? localStorage.setItem(SESSION_KEY, JSON.stringify(j)) : localStorage.removeItem(SESSION_KEY); }catch(e){} }
+  function sbHeaders(){ return {"apikey": SB.anon_key, "Authorization": "Bearer " + (session ? session.access_token : SB.anon_key), "Content-Type":"application/json", "Accept":"application/json"}; }
+  async function sbAuth(path, body){
+    const r = await fetch(`${SB.url}/auth/v1/${path}`, {method:"POST", headers:{"apikey":SB.anon_key, "Content-Type":"application/json"}, body: JSON.stringify(body)});
+    const j = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error_description || j.msg || j.message || "Sign in failed");
+    return j;
+  }
+  async function ensureSession(){
+    if(!session) return false;
+    if((session.expires_at||0)*1000 - Date.now() > 60000) return true;
+    try{ setSession(await sbAuth("token?grant_type=refresh_token", {refresh_token: session.refresh_token})); return true; }
+    catch(e){ setSession(null); return false; }
+  }
+  async function view(name, q){
+    const r = await fetch(`${SB.url}/rest/v1/${name}${q?"?"+q:""}`, {headers: sbHeaders()});
+    if(r.status===401){ setSession(null); throw new Error("Signed out"); }
+    if(!r.ok) throw new Error(await r.text());
+    return r.json();
+  }
+  async function rpc(fn, args){
+    const r = await fetch(`${SB.url}/rest/v1/rpc/${fn}`, {method:"POST", headers: sbHeaders(), body: JSON.stringify(args)});
+    const j = await r.json().catch(()=>({}));
+    if(!r.ok){ const m = j.message || ""; const err = new Error(m.startsWith("GRND-") ? m.slice(10) : (m || "Request failed")); err.code = m.slice(0,8); throw err; }
+    return j;
+  }
+  function ago(ts){ const m = Math.round((Date.now() - new Date(ts).getTime())/60000); if(m<1) return "just now"; if(m<60) return m+" min ago"; const h = Math.floor(m/60); if(h<24) return h+" h "+(m%60)+" min ago"; return new Date(ts).toLocaleString(); }
+  async function refreshLive(){
+    if(!SB) return;
+    if(!(await ensureSession())){ me = null; opState = null; for(const k in liveStatus) delete liveStatus[k]; livePeople = []; map.removeLayer(keepoutGroup); map.removeLayer(peopleGroup); refreshStyles(); renderLivePanel(); return; }
+    try{
+      const [meRows, st, status, kos, people] = await Promise.all([
+        view("v_me"), view("v_operating_state"), view("v_zone_status_current"), view("v_keepouts", "active=eq.true"), view("v_crew_availability", "on_shift=eq.true")]);
+      me = meRows[0] || null; opState = st[0] || null;
+      for(const k in liveStatus) delete liveStatus[k];
+      status.forEach(r => { (liveStatus[r.zone_id] ||= {})[r.activity] = r; });
+      kos.forEach(k => { if(k.zone_id) (liveStatus[k.zone_id] ||= {}).keepout = k; });
+      livePeople = people; liveAt = new Date(); liveErr = "";
+      keepoutGroup.clearLayers();
+      kos.filter(k => k.geom).forEach(k => L.geoJSON(k.geom, {style:{color:"#D7263D", weight:2, dashArray:"4 4", fillColor:"#D7263D", fillOpacity:.25}}).bindTooltip(`Keep out: ${k.kind}, ${k.reason}`, {sticky:true}).addTo(keepoutGroup));
+      peopleGroup.clearLayers();
+      people.filter(x => x.last_location).forEach(x => {
+        const [lng, lat] = x.last_location.coordinates;
+        L.circleMarker([lat, lng], {radius:8, color:"#fff", weight:2, fillColor: x.location_stale ? "#F2B134" : "#1a73e8", fillOpacity:1})
+          .bindTooltip(`${x.full_name}${x.current_zone_name?" · "+x.current_zone_name:""}${x.location_stale?" (stale)":""}`, {permanent:true, direction:"top", className:"lbl person"}).addTo(peopleGroup);
+      });
+      if(!map.hasLayer(keepoutGroup)) keepoutGroup.addTo(map);
+      if(!map.hasLayer(peopleGroup)) peopleGroup.addTo(map);
+      refreshStyles(); renderLivePanel(); renderDetail();
+    }catch(e){ liveErr = String(e.message || e); renderLivePanel(); }
+  }
+  function renderLivePanel(){
+    if(!SB) return;
+    btnLive.hidden = false; document.getElementById("livePanel").hidden = false;
+    if(!session){
+      liveChip.hidden = true; btnLive.textContent = "Sign in";
+      liveBody.innerHTML = `<p class="muted">Sign in to see live status, keep-outs, and who is on shift. Same login as the Grounds app.</p>
+        <div class="field"><label>Email</label><input type="text" id="liEmail" autocomplete="username" inputmode="email"></div>
+        <div class="field"><label>Password</label><input type="password" id="liPass" autocomplete="current-password" style="width:100%;font:inherit;padding:7px 8px;border:1px solid var(--line);border-radius:6px"></div>
+        <div class="btns"><button class="btn primary" id="liGo">Sign in</button></div><div class="muted" id="liMsg" style="margin-top:6px">${liveErr}</div>`;
+      const go = async () => {
+        const b = liveBody.querySelector("#liGo"); b.disabled = true; liveBody.querySelector("#liMsg").textContent = "Signing in...";
+        try{ setSession(await sbAuth("token?grant_type=password", {email: liveBody.querySelector("#liEmail").value.trim(), password: liveBody.querySelector("#liPass").value})); liveErr = ""; await refreshLive(); }
+        catch(e){ liveBody.querySelector("#liMsg").textContent = e.message; b.disabled = false; }
+      };
+      liveBody.querySelector("#liGo").onclick = go;
+      liveBody.querySelector("#liPass").addEventListener("keydown", e => { if(e.key==="Enter") go(); });
+      return;
+    }
+    btnLive.textContent = "Live";
+    if(me && opState){ liveChip.hidden = false; liveChip.textContent = `${opState.mode} · ${me.full_name}`; liveChip.classList.toggle("snow", opState.mode==="snow"); }
+    const people = livePeople.map(x => `<div class="item" data-pid="${x.profile_id}"><span class="pdot ${x.location_stale?"stale":""}"></span><span>${x.full_name}</span><span class="muted" style="margin-left:auto">${x.current_zone_name || x.availability}</span></div>`).join("");
+    liveBody.innerHTML = `
+      ${me ? `<div><b>${me.full_name}</b> <span class="muted">${me.app_role}${me.crew_name?" · "+me.crew_name:""}</span></div>` : ""}
+      ${opState ? `<div style="margin:6px 0">Mode: <b>${opState.mode}</b>${opState.active_event_name?` · ${opState.active_event_name}`:""} <span class="muted">(rev ${opState.revision}, ${opState.changed_by_name||""})</span></div>` : ""}
+      <h2 style="margin-top:10px">On shift (${livePeople.length})</h2>
+      <div class="list">${people || `<div class="item muted">Nobody on shift</div>`}</div>
+      <div class="muted" style="margin-top:8px">${liveErr ? liveErr : (liveAt ? `Updated ${liveAt.toLocaleTimeString()}. Refreshes every minute.` : "Loading...")}</div>
+      <div class="btns" style="margin-top:8px"><button class="btn small" id="liRefresh">Refresh now</button><button class="btn small" id="liOut">Sign out</button></div>`;
+    liveBody.querySelector("#liRefresh").onclick = refreshLive;
+    liveBody.querySelector("#liOut").onclick = () => { setSession(null); refreshLive(); };
+    liveBody.querySelectorAll("[data-pid]").forEach(el => el.onclick = () => { const x = livePeople.find(y => y.profile_id===el.dataset.pid); if(x && x.last_location){ const [lng, lat] = x.last_location.coordinates; map.setView([lat, lng], Math.max(map.getZoom(), 17)); } });
+  }
+  function renderLiveDetail(p){
+    if(!SB || !session || !p || !p.id) return;
+    const ls = liveStatus[p.id] || {};
+    const snow = opState && opState.mode==="snow";
+    const acts = ["cleared","salted","sanded","brined","mowed","trimmed","inspected"];
+    const rows = acts.filter(a => ls[a]).map(a => `<dt>${a}</dt><dd>${ago(ls[a].at)} by ${ls[a].by_name}${ls[a].stale?' <span class="flag">stale</span>':""}</dd>`).join("");
+    const canSet = me && (me.app_role==="admin" || me.app_role==="lead") && ["snow_routes","mowing_areas","boundary"].includes(selected.layerKey);
+    const btns = (snow ? ["cleared","salted","sanded"] : ["mowed","trimmed","inspected"]).map(a => `<button class="btn small" data-act="${a}">${a}</button>`).join("");
+    const div = document.createElement("div"); div.id = "liveDetail";
+    div.innerHTML = `<h3 style="font-size:13px;margin-top:12px;color:var(--deep)">Live status</h3>
+      ${ls.keepout ? `<div class="flag" style="margin:4px 0">Keep out: ${ls.keepout.kind}, ${ls.keepout.reason}</div>` : ""}
+      ${rows ? `<dl>${rows}</dl>` : `<div class="muted">No status yet ${snow ? "this storm" : "in the last 24 hours"}.</div>`}
+      ${canSet ? `<div class="btns">${btns}</div>` : ""}`;
+    detail.appendChild(div);
+    div.querySelectorAll("[data-act]").forEach(b => b.onclick = async () => {
+      b.disabled = true;
+      try{ await rpc("zone_status_set", {idempotency_key: crypto.randomUUID(), zone_id: p.id, activity: b.dataset.act}); toast(`${p.name}: ${b.dataset.act}`); await refreshLive(); }
+      catch(e){ toast(e.message); b.disabled = false; }
+    });
+  }
+  if(SB){
+    btnLive.onclick = () => { showTab("live"); document.getElementById("livePanel").scrollIntoView({behavior:"smooth", block:"start"}); const f = liveBody.querySelector("#liEmail"); if(f) f.focus(); };
+    renderLivePanel(); refreshLive(); setInterval(refreshLive, 60000);
+  }
+
   // ------------------------------------------------------------- helpers
   function geodesicAcres(ring){
     // shoelace on an equirectangular projection, fine at campus scale
@@ -660,9 +805,9 @@
   const flagged = index.filter(it => it.feature.properties.needs_tracing).length;
   document.getElementById("draftBanner").hidden = flagged===0;
   // start on everything that is drawn, so nothing sits off screen
-  const all = L.featureGroup(Object.values(groups).filter(g => map.hasLayer(g)));
-  if(all.getLayers().length && all.getBounds().isValid()) map.fitBounds(all.getBounds().pad(0.08));
-  setTimeout(() => map.invalidateSize(), 200);
+  const fitAll = () => { const all = L.featureGroup(Object.values(groups).filter(g => map.hasLayer(g))); if(all.getLayers().length && all.getBounds().isValid()) map.fitBounds(all.getBounds().pad(0.08)); };
+  fitAll();
+  setTimeout(() => { map.invalidateSize(); if(map.getZoom() < 12) fitAll(); }, 300);
 })();
 </script>
 </body>
