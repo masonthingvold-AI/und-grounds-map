@@ -223,10 +223,12 @@
   const sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {maxZoom:19, attribution:"Imagery &copy; Esri, Maxar, Earthstar Geographics"});
   const satLabels = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}", {maxZoom:19, pane:"overlayPane"});
   const satGroup = L.layerGroup([sat, satLabels]);
+  // plan view: light gray streets and building footprints, so the colored zones read like the printed mowing map
+  const plan = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {maxZoom:20, subdomains:"abcd", attribution:"&copy; OpenStreetMap contributors &copy; CARTO"});
   let base = "sat"; try{ base = localStorage.getItem("und-grounds-base") || "sat"; }catch(e){}
-  (base==="street" ? street : satGroup).addTo(map);
-  L.control.layers({"Satellite":satGroup, "Street map":street}, null, {position:"topright", collapsed: window.matchMedia("(max-width:820px)").matches}).addTo(map);
-  map.on("baselayerchange", e => { try{ localStorage.setItem("und-grounds-base", e.name==="Street map"?"street":"sat"); }catch(x){} });
+  ({street, plan}[base] || satGroup).addTo(map);
+  L.control.layers({"Satellite":satGroup, "Street map":street, "Plan view":plan}, null, {position:"topright", collapsed: window.matchMedia("(max-width:820px)").matches}).addTo(map);
+  map.on("baselayerchange", e => { try{ localStorage.setItem("und-grounds-base", {"Street map":"street","Plan view":"plan"}[e.name] || "sat"); }catch(x){} });
   L.control.scale({imperial:true, metric:false}).addTo(map);
 
   // ------------------------------------------------------------- styling
