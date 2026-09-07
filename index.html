@@ -321,6 +321,7 @@
   const groups = {};      // layerKey -> L.FeatureGroup
   const index = [];       // searchable list of {layerKey, feature, leafletLayer}
   let selected = null;
+  let shapeTool = null;   // "move" or "trace" while a per-shape tool is active in edit mode
 
   const SITES = config.sites || [{id:"main",label:"Main campus"}];
   const ENUMS = config.enums || {};
@@ -449,8 +450,10 @@
   const detail = document.getElementById("detail");
   const HIDDEN = new Set(["id","name","notes","needs_tracing"]);
   function select(key, f, lyr){
+    const keepTool = shapeTool; if(keepTool) stopShapeTool();
     if(selected && selected.layer.setStyle) selected.layer.setStyle(styleFor(selected.layerKey, selected.feature));
     selected = {layerKey:key, feature:f, layer:lyr};
+    if(keepTool && editMode) startShapeTool(keepTool);
     if(lyr.setStyle) lyr.setStyle(Object.assign({}, styleFor(key,f), {weight:(f.geometry.type==="Point"?3:4), color:"#111"}));
     if(lyr.getBounds && !map.getBounds().contains(lyr.getBounds())) map.fitBounds(lyr.getBounds().pad(0.3));
     renderDetail();
@@ -471,7 +474,8 @@
       <div class="muted">${id} · ${selected.layerKey.replace("_"," ")}</div>
       ${editMode?"":`<dl>${rows}${acresNote}</dl>`}
       ${(p.notes && !editMode)?`<p style="margin:6px 0">${p.notes}</p>`:""}
-      ${editMode?`<div class="btns"><button class="btn" id="wZoom">Zoom to</button><button class="btn" id="wDup">Duplicate</button><button class="btn" id="wDelete" style="color:var(--danger)">Delete shape</button></div>`:`
+      ${editMode?`<div class="btns">${selected.layer.getLatLngs?`<button class="btn ${shapeTool==="move"?"primary":""}" id="wMove">${shapeTool==="move"?"Done moving":"Move"}</button><button class="btn ${shapeTool==="trace"?"primary":""}" id="wTrace">${shapeTool==="trace"?"Done tracing":"Trace edges"}</button>`:""}<button class="btn" id="wZoom">Zoom to</button><button class="btn" id="wDup">Duplicate</button><button class="btn" id="wDelete" style="color:var(--danger)">Delete shape</button></div>
+      ${shapeTool==="move"?`<div class="muted" style="margin-top:6px">Drag the shape to where it belongs. Undo steps back.</div>`:shapeTool==="trace"?`<div class="muted" style="margin-top:6px">Drag the white squares onto the real edge. The square between two corners adds a corner; tap a corner to remove it. Undo steps back; the shape stops being a placeholder once you touch it.</div>`:""}`:`
       <div class="field"><label>Status</label><select id="wStatus">${STATUSES.map(s=>`<option ${((w.status||STATUSES[0])===s)?"selected":""}>${s}</option>`).join("")}</select></div>
       <div class="field"><label>Field note</label><textarea id="wNote" placeholder="What happened, what is wrong, what is needed">${w.note||""}</textarea></div>
       <div class="field"><label>Your name or crew</label><input type="text" id="wWho" value="${w.who||lastWho()}"></div>
@@ -493,6 +497,9 @@
     if(editMode){
       detail.querySelector("#wDup").onclick = duplicateSelected;
       detail.querySelector("#wDelete").onclick = deleteSelected;
+      const mv = detail.querySelector("#wMove"), tr = detail.querySelector("#wTrace");
+      if(mv) mv.onclick = () => { shapeTool==="move" ? stopShapeTool() : startShapeTool("move"); renderDetail(); };
+      if(tr) tr.onclick = () => { shapeTool==="trace" ? stopShapeTool() : startShapeTool("trace"); renderDetail(); };
     }
   }
   function lastWho(){ try{ return localStorage.getItem("und-grounds-who")||""; }catch(e){ return ""; } }
@@ -694,6 +701,53 @@
 
   // ------------------------------------------------------------- edit mode
   let editMode = false, drawControl = null;
+  // ---- per-shape tools: move (drag the whole shape) and trace (drag its corners), on the selected shape only
+  let dragState = null;
+  function commitGeometry(l, traced){
+    snapshot();
+    l.feature.geometry = l.toGeoJSON().geometry;
+    if(l.feature.geometry.type === "Polygon") l.feature.properties.drawn_acres = +geodesicAcres(l.feature.geometry.coordinates[0]).toFixed(2);
+    if(traced) l.feature.properties.needs_tracing = false;
+    markDirty(); if(l.setStyle) l.setStyle(Object.assign({}, styleFor(selected.layerKey, l.feature), {weight:4, color:"#111"}));
+    updateEditStatus();
+  }
+  const evLatLng = e => e.latlng || (e.touches && e.touches[0] ? map.mouseEventToLatLng(e.touches[0]) : null);
+  function dragStart(e){
+    const ll = evLatLng(e.originalEvent && e.originalEvent.touches ? e.originalEvent : e); if(!ll || !selected) return;
+    if(e.originalEvent) L.DomEvent.stop(e.originalEvent); else if(e.preventDefault) e.preventDefault();
+    map.dragging.disable();
+    dragState = {start: ll, orig: selected.layer.getLatLngs()};
+    map.on("mousemove", dragMove); map.on("mouseup", dragEnd);
+    document.addEventListener("touchmove", dragMove, {passive:false}); document.addEventListener("touchend", dragEnd);
+  }
+  function dragMove(e){
+    if(!dragState) return; const ll = evLatLng(e); if(!ll) return;
+    if(e.preventDefault) e.preventDefault();
+    const dLat = ll.lat - dragState.start.lat, dLng = ll.lng - dragState.start.lng;
+    const shift = a => Array.isArray(a) ? a.map(shift) : L.latLng(a.lat + dLat, a.lng + dLng);
+    selected.layer.setLatLngs(shift(dragState.orig));
+  }
+  function dragEnd(){
+    if(!dragState) return; dragState = null; map.dragging.enable();
+    map.off("mousemove", dragMove); map.off("mouseup", dragEnd);
+    document.removeEventListener("touchmove", dragMove); document.removeEventListener("touchend", dragEnd);
+    commitGeometry(selected.layer, false); renderDetail();
+  }
+  function onVertexEdit(){ if(selected) commitGeometry(selected.layer, true); }
+  function startShapeTool(t){
+    stopShapeTool(); if(!selected || !selected.layer.getLatLngs) return;
+    const l = selected.layer; shapeTool = t;
+    if(t === "trace"){ if(l.editing){ l.editing.enable(); l.on("edit", onVertexEdit); } }
+    else { l.on("mousedown", dragStart); if(l._path) l._path.addEventListener("touchstart", dragStart, {passive:false}); }
+  }
+  function stopShapeTool(){
+    if(selected && selected.layer && shapeTool){
+      const l = selected.layer;
+      if(shapeTool === "trace" && l.editing){ l.off("edit", onVertexEdit); if(l.editing.enabled()) l.editing.disable(); }
+      if(shapeTool === "move"){ l.off("mousedown", dragStart); if(l._path) l._path.removeEventListener("touchstart", dragStart); if(dragState) dragEnd(); }
+    }
+    shapeTool = null;
+  }
   const editLayerSel = document.getElementById("editLayer");
   config.layers.forEach(l => { const o = document.createElement("option"); o.value=l.file; o.textContent=l.label; editLayerSel.appendChild(o); });
   const editSiteSel = document.getElementById("editSite");
@@ -707,6 +761,7 @@
       attachDraw();
       toast("Edit mode. Trace on the satellite view. Cmd/Ctrl+S saves to the repo.");
     } else {
+      stopShapeTool();
       if(drawControl){ map.removeControl(drawControl); drawControl = null; }
     }
     renderDetail();
