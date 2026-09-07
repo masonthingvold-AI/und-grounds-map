@@ -39,7 +39,7 @@ Migrations are numbered `supabase/migrations/NNNN_name.sql`. Once a migration is
 
 ## Synthetic people
 
-`chad@test.invalid` (admin), `lead@test.invalid` (lead of Snow walks A), `jordan@test.invalid` (Temp 2), `sam@test.invalid` (Temp 1), `other@test.invalid` (Temp 1, Snow walks B). Created by the smoke test with random passwords. Not real employees. Delete from Authentication, Users whenever.
+`chad@test.invalid` (admin), `lead@test.invalid` (lead of Snow walks A), `jordan@test.invalid` (Temp 2), `sam@test.invalid` (Temp 1), `other@test.invalid` (Temp 1, Snow walks B). Created by the smoke test, all with the password `Grounds-Test-2026!` so Codex can sign in through the app. Not real employees. Delete from Authentication, Users whenever.
 
 ## What is not built yet
 

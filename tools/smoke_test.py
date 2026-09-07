@@ -17,6 +17,7 @@ PEOPLE = {
     "sam":    dict(email="sam@test.invalid",    name="Sam Test",    tier="temp1",     role="worker"),
     "other":  dict(email="other@test.invalid",  name="Otto Other",  tier="temp1",     role="worker"),
 }
+TEST_PASSWORD = "Grounds-Test-2026!"   # synthetic accounts only; see docs/supabase-setup.md
 results = []
 def check(name, ok, info=""):
     ok = bool(ok); results.append(ok); print(("PASS " if ok else "FAIL ") + name + (f"  ({info})" if info else ""))
@@ -32,7 +33,7 @@ def ensure_users(conn):
     for k, p in PEOPLE.items():
         row = conn.execute("select id from auth.users where email = %s", (p["email"],)).fetchone()
         if row: ids[k] = row[0]; continue
-        r = admin_api("/admin/users", {"email": p["email"], "password": "Test-" + uuid.uuid4().hex[:12], "email_confirm": True, "user_metadata": {"synthetic": True}})
+        r = admin_api("/admin/users", {"email": p["email"], "password": TEST_PASSWORD, "email_confirm": True, "user_metadata": {"synthetic": True}})
         if "id" not in r: raise SystemExit(f"could not create {p['email']}: {r}")
         ids[k] = r["id"]
     return ids
