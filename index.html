@@ -68,6 +68,14 @@
   .pdot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);margin-right:6px}
   .pdot.stale{background:#F2B134;box-shadow:none}
   .lbl.person{color:#fff;text-shadow:0 0 3px #1a73e8,0 0 3px #1a73e8}
+  .eq{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);align-items:flex-start}
+  .eq:last-child{border-bottom:0}
+  .eq .ph{width:64px;height:64px;border-radius:8px;background:var(--bg) center/cover no-repeat;flex:none;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px}
+  .eq .who{display:flex;align-items:center;gap:6px;margin-top:4px;font-size:12px;color:var(--muted)}
+  .eq .av{width:22px;height:22px;border-radius:50%;background:var(--gray) center/cover no-repeat;flex:none;display:inline-block}
+  .eq .st{font-size:10px;padding:2px 6px;border-radius:10px;background:var(--bg);color:var(--muted);margin-left:6px}
+  .eq .st.down,.eq .st.needs_repair{background:#fde3e6;color:var(--danger)}
+  .eq .st.in_use{background:#dff3e6;color:var(--deep)}
   #tabbar{display:none}
   @media (max-width:820px){
     :root{--sidebar:0px}
@@ -159,6 +167,11 @@
     <section data-tab="live" id="livePanel" hidden>
       <h2>Live</h2>
       <div id="liveBody"></div>
+    </section>
+
+    <section data-tab="live" id="equipPanel" hidden>
+      <h2>Equipment</h2>
+      <div id="equipBody"><p class="muted">Sign in to see the equipment list.</p></div>
     </section>
 
     <section data-tab="layers" id="editPanel" hidden>
@@ -725,7 +738,7 @@
   function ago(ts){ const m = Math.round((Date.now() - new Date(ts).getTime())/60000); if(m<1) return "just now"; if(m<60) return m+" min ago"; const h = Math.floor(m/60); if(h<24) return h+" h "+(m%60)+" min ago"; return new Date(ts).toLocaleString(); }
   async function refreshLive(){
     if(!SB) return;
-    if(!(await ensureSession())){ me = null; opState = null; for(const k in liveStatus) delete liveStatus[k]; livePeople = []; map.removeLayer(keepoutGroup); map.removeLayer(peopleGroup); refreshStyles(); renderLivePanel(); return; }
+    if(!(await ensureSession())){ me = null; opState = null; document.getElementById("equipPanel").hidden = false; refreshEquipment(); for(const k in liveStatus) delete liveStatus[k]; livePeople = []; map.removeLayer(keepoutGroup); map.removeLayer(peopleGroup); refreshStyles(); renderLivePanel(); return; }
     try{
       const [meRows, st, status, kos, people] = await Promise.all([
         view("v_me"), view("v_operating_state"), view("v_zone_status_current"), view("v_keepouts", "active=eq.true"), view("v_crew_availability", "on_shift=eq.true")]);
@@ -744,7 +757,7 @@
       });
       if(!map.hasLayer(keepoutGroup)) keepoutGroup.addTo(map);
       if(!map.hasLayer(peopleGroup)) peopleGroup.addTo(map);
-      refreshStyles(); renderLivePanel(); renderDetail();
+      refreshStyles(); renderLivePanel(); renderDetail(); document.getElementById("equipPanel").hidden = false; refreshEquipment();
     }catch(e){ liveErr = String(e.message || e); renderLivePanel(); }
   }
   function renderLivePanel(){
@@ -778,6 +791,75 @@
     liveBody.querySelector("#liRefresh").onclick = refreshLive;
     liveBody.querySelector("#liOut").onclick = () => { setSession(null); refreshLive(); };
     liveBody.querySelectorAll("[data-pid]").forEach(el => el.onclick = () => { const x = livePeople.find(y => y.profile_id===el.dataset.pid); if(x && x.last_location){ const [lng, lat] = x.last_location.coordinates; map.setView([lat, lng], Math.max(map.getZoom(), 17)); } });
+  }
+  // ---- equipment list (v_assets) with photos, holder, and admin add/edit
+  const equipBody = document.getElementById("equipBody"); let equipList = [];
+  const mediaUrl = {};
+  async function mediaSrc(path){
+    if(!path) return "";
+    if(mediaUrl[path]) return mediaUrl[path];
+    try{
+      const r = await fetch(`${SB.url}/storage/v1/object/authenticated/media/${path}`, {headers: sbHeaders()});
+      if(!r.ok) return "";
+      mediaUrl[path] = URL.createObjectURL(await r.blob()); return mediaUrl[path];
+    }catch(e){ return ""; }
+  }
+  async function refreshEquipment(){
+    if(!SB || !session){ equipBody.innerHTML = `<p class="muted">Sign in to see the equipment list.</p>`; return; }
+    try{ equipList = await view("v_assets", "order=class,name"); }catch(e){ equipBody.innerHTML = `<p class="muted">${e.message}</p>`; return; }
+    const admin = me && me.app_role==="admin";
+    equipBody.innerHTML = `<div class="muted" style="margin-bottom:6px">${equipList.length} machines${admin ? ". Tap one to edit or add a photo." : ""}</div>` +
+      equipList.map(a => `<div class="eq" data-id="${a.id}">
+        <div class="ph" data-photo="${a.photo_path||""}">${a.photo_path ? "" : "no photo"}</div>
+        <div style="flex:1;min-width:0">
+          <div><b>${a.name}</b> <span class="muted">${a.id}</span><span class="st ${a.in_use?"in_use":a.status}">${a.in_use ? "in use" : a.status.replace("_"," ")}</span></div>
+          <div class="muted" style="font-size:12px">${[a.class.replace("_"," "), a.make, a.model, a.year].filter(Boolean).join(" · ")}${a.hour_meter!=null ? ` · ${a.hour_meter} h` : ""}</div>
+          ${a.holder_name ? `<div class="who"><span class="av" data-avatar="${a.holder_avatar_path||""}"></span>${a.holder_name}${a.holder_zone_id ? " · " + a.holder_zone_id : ""}</div>` : `<div class="who">Not checked out</div>`}
+        </div></div>`).join("") +
+      (admin ? `<div class="btns" style="margin-top:8px"><button class="btn small" id="eqAdd">Add equipment</button></div>` : "");
+    equipBody.querySelectorAll("[data-photo]").forEach(async el => { const u = await mediaSrc(el.dataset.photo); if(u){ el.style.backgroundImage = `url(${u})`; el.textContent = ""; } });
+    equipBody.querySelectorAll("[data-avatar]").forEach(async el => { const u = await mediaSrc(el.dataset.avatar); if(u) el.style.backgroundImage = `url(${u})`; });
+    if(admin){
+      equipBody.querySelectorAll(".eq").forEach(el => el.onclick = () => equipEdit(equipList.find(a => a.id===el.dataset.id)));
+      equipBody.querySelector("#eqAdd").onclick = () => equipEdit(null);
+    }
+  }
+  function equipEdit(a){
+    const isNew = !a; a = a || {id:"", name:"", asset_type:"machine", class:"mower_ztr", make:"", model:"", year:"", status:"in_service", howto_md:"", notes:""};
+    const types = ["machine","attachment","vehicle","tool","facility","fixed"], classes = ["mower_ztr","mower_wide","toolcat","skid_steer","loader","tractor","utv","plow_truck","spreader","pusher_box","broom","blower","bucket","trimmer","hand_tool","sprayer","aerial_lift","chainsaw","storage","other"];
+    const statuses = ["in_service","down","needs_repair","retired","unknown"];
+    const sel = (id, opts, v) => `<select id="${id}">${opts.map(o=>`<option ${o===v?"selected":""}>${o}</option>`).join("")}</select>`;
+    equipBody.innerHTML = `<h3 style="font-size:14px">${isNew ? "New equipment" : a.name}</h3>
+      <div class="field"><label>ID (EQ-07, ATT-03)</label><input type="text" id="eqId" value="${a.id}" ${isNew?"":"disabled"}></div>
+      <div class="field"><label>Name</label><input type="text" id="eqName" value="${a.name}"></div>
+      <div class="field"><label>Type</label>${sel("eqType", types, a.asset_type)}</div>
+      <div class="field"><label>Class</label>${sel("eqClass", classes, a.class)}</div>
+      <div class="field"><label>Make</label><input type="text" id="eqMake" value="${a.make||""}"></div>
+      <div class="field"><label>Model</label><input type="text" id="eqModel" value="${a.model||""}"></div>
+      <div class="field"><label>Year</label><input type="text" id="eqYear" value="${a.year||""}" inputmode="numeric"></div>
+      <div class="field"><label>Status</label>${sel("eqStatus", statuses, a.status)}</div>
+      <div class="field"><label>How to run it (tips, quirks)</label><textarea id="eqHowto">${a.howto_md||""}</textarea></div>
+      <div class="field"><label>Notes</label><textarea id="eqNotes">${a.notes||""}</textarea></div>
+      ${isNew ? "" : `<div class="field"><label>Photo</label><input type="file" id="eqPhoto" accept="image/*" capture="environment"></div>`}
+      <div class="btns"><button class="btn primary" id="eqSave">Save</button><button class="btn" id="eqBack">Back</button></div><div class="muted" id="eqMsg" style="margin-top:6px"></div>`;
+    equipBody.querySelector("#eqBack").onclick = refreshEquipment;
+    equipBody.querySelector("#eqSave").onclick = async () => {
+      const g = id => equipBody.querySelector("#"+id).value.trim();
+      const msg = equipBody.querySelector("#eqMsg"); msg.textContent = "Saving...";
+      try{
+        await rpc("asset_upsert", {idempotency_key: crypto.randomUUID(), id: g("eqId").toUpperCase(), name: g("eqName"), asset_type: g("eqType"), class: g("eqClass"),
+          make: g("eqMake")||null, model: g("eqModel")||null, year: g("eqYear") ? +g("eqYear") : null, status: g("eqStatus"), howto_md: g("eqHowto")||null, notes: g("eqNotes")||null});
+        const file = isNew ? null : equipBody.querySelector("#eqPhoto").files[0];
+        if(file){
+          msg.textContent = "Uploading photo...";
+          const reg = await rpc("media_upload_path", {kind:"asset_photo", target_id: g("eqId").toUpperCase(), content_type: file.type || "image/jpeg"});
+          const up = await fetch(`${SB.url}/storage/v1/object/media/${reg.data.path}`, {method:"POST", headers: Object.assign(sbHeaders(), {"Content-Type": file.type || "image/jpeg", "x-upsert":"false"}), body: file});
+          if(!up.ok) throw new Error("Photo upload failed: " + (await up.text()).slice(0,120));
+          await rpc("media_apply", {idempotency_key: crypto.randomUUID(), path: reg.data.path});
+        }
+        toast("Saved"); refreshEquipment();
+      }catch(e){ msg.textContent = e.message; }
+    };
   }
   function renderLiveDetail(p){
     if(!SB || !session || !p || !p.id) return;

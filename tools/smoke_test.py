@@ -77,7 +77,16 @@ def main():
                             values (%s,%s,%s,%s,%s,%s,%s,true) on conflict (id) do update set crew_id = excluded.crew_id, app_role = excluded.app_role, employment_tier = excluded.employment_tier, active = true""",
                          (ids[k], p["name"], p["email"], p["tier"], p["role"], crew, k in ("jordan","sam","other")))
         conn.execute("update public.crews set lead_id = %s where id = %s", (ids["lead"], crewA))
-        conn.execute("update public.zones set responsible_crew_id = %s where id in ('SW-1','SW-2')", (crewA,))
+        # the smoke test owns two walk-route zones so it never depends on the map's data
+        for zid, name, coords in (("TEST-SW-1", "Test walk 1", [[-97.0740, 47.9226],[-97.0720, 47.9226]]), ("TEST-SW-2", "Test walk 2", [[-97.0742, 47.9228],[-97.0721, 47.9231]])):
+            conn.execute("""insert into public.zones(id, name, class, site, season, priority_snow, responsible_crew_id, active) values (%s,%s,'walk_route','main','snow',1,%s,true)
+                            on conflict (id) do update set responsible_crew_id = excluded.responsible_crew_id, active = true""", (zid, name, crewA))
+            if not conn.execute("select current_version_id from public.zones where id=%s", (zid,)).fetchone()[0]:
+                conn.execute("select public.zone_version_create(%s, %s::jsonb, 'smoke_test', true, null)", (zid, json.dumps({"type":"LineString","coordinates":coords})))
+        # and one machine, so the asset checks never depend on the map's data either
+        conn.execute("""insert into public.assets(id, name, asset_type, class, required_capability_code, status, active) values ('TST-EQ1','Test toolcat','machine','toolcat','TOOLCAT','in_service',true)
+                        on conflict (id) do update set status='in_service', active=true""")
+        conn.execute("update public.asset_reservations set released_at = now() where asset_id='TST-EQ1' and released_at is null")
         # clean earlier runs of this test's tasks
         conn.execute("update public.tasks set state='canceled' where created_by = %s and state not in ('done','canceled')", (ids["chad"],))
         conn.execute("update public.shifts set ended_at = now() where profile_id = any(%s) and ended_at is null", (list(ids.values()),))
@@ -92,7 +101,7 @@ def main():
         conn.execute("begin")
         # 1 task create by admin
         with As(conn, ids["chad"]) as chad:
-            r = chad.rpc("task_create", idempotency_key=k(), zone_id="SW-2", task_type="salt", outcome="Walks around the Union open and salted before 6:30",
+            r = chad.rpc("task_create", idempotency_key=k(), zone_id="TEST-SW-2", task_type="salt", outcome="Walks around the Union open and salted before 6:30",
                          required_capabilities=["TOOLCAT"], priority=1)
             check("task_create", r.get("ok") is True, str(r)[:80]); task = r["data"]["task_id"]
             check("default evidence for salt", set(chad.q("select evidence_required from public.tasks where id=%s", task)[0][0]) == {"photo_before","photo_after","material_qty","location"})
@@ -101,15 +110,15 @@ def main():
             r = chad.rpc("certification_verify", idempotency_key=k(), profile_id=ids["jordan"], capability_code="TOOLCAT")
             check("certification_verify", r.get("ok") is True, str(r)[:80])
             key = k()
-            r1 = chad.rpc("task_assign", idempotency_key=key, task_id=task, profile_id=ids["jordan"], expected_revision=1, asset_id="EQ-01")
+            r1 = chad.rpc("task_assign", idempotency_key=key, task_id=task, profile_id=ids["jordan"], expected_revision=1, asset_id="TST-EQ1")
             check("assign qualified", r1.get("ok") is True and r1["data"]["state"] == "assigned", str(r1)[:100])
-            r2 = chad.rpc("task_assign", idempotency_key=key, task_id=task, profile_id=ids["jordan"], expected_revision=1, asset_id="EQ-01")
+            r2 = chad.rpc("task_assign", idempotency_key=key, task_id=task, profile_id=ids["jordan"], expected_revision=1, asset_id="TST-EQ1")
             check("same key replays, no second assignment", r2.get("replayed") is True and r2["data"]["assignment_id"] == r1["data"]["assignment_id"])
             check("stale revision -> GRND-409", chad.rpc("task_assign", idempotency_key=k(), task_id=task, profile_id=ids["sam"], expected_revision=1).get("error") == "GRND-409")
-            check("asset EQ-01 reserved", chad.q("select count(*) from public.asset_reservations where asset_id='EQ-01' and released_at is null")[0][0] == 1)
-            r = chad.rpc("task_create", idempotency_key=k(), zone_id="SW-1", task_type="plow", outcome="Second task needs EQ-01 too", required_capabilities=[])
+            check("asset TST-EQ1 reserved", chad.q("select count(*) from public.asset_reservations where asset_id='TST-EQ1' and released_at is null")[0][0] == 1)
+            r = chad.rpc("task_create", idempotency_key=k(), zone_id="TEST-SW-1", task_type="plow", outcome="Second task needs TST-EQ1 too", required_capabilities=[])
             check("task_create second", r.get("ok") is True, str(r)[:160]); task2 = r["data"]["task_id"]
-            r = chad.rpc("task_assign", idempotency_key=k(), task_id=task2, profile_id=ids["sam"], asset_id="EQ-01")
+            r = chad.rpc("task_assign", idempotency_key=k(), task_id=task2, profile_id=ids["sam"], asset_id="TST-EQ1")
             check("double booking asset -> GRND-424", r.get("error") == "GRND-424", str(r)[:200])
             assignment = r1["data"]["assignment_id"]
         # 2 RLS: other crew's worker sees nothing
@@ -173,7 +182,7 @@ def main():
                             photos=photos, materials=[{"material_code": "bulk_salt", "qty": 120, "unit": "lb"}], expected_revision=rev)
             check("finalize retry replays one record", r2.get("replayed") is True and r2["data"]["service_record_id"] == rec)
             check("materials ledger debited", jordan.q("select on_hand from public.materials where code='bulk_salt'")[0][0] <= -120)
-            check("zone status salted set", jordan.q("select count(*) from public.v_zone_status_current where zone_id='SW-2' and activity='salted'")[0][0] == 1)
+            check("zone status salted set", jordan.q("select count(*) from public.v_zone_status_current where zone_id='TEST-SW-2' and activity='salted'")[0][0] == 1)
             check("evidence_verify ok", jordan.rpc("evidence_verify", p_record=rec).get("ok") is True)
             check("worker cannot update service record", jordan.rpc("nonexistent").get("error", "").startswith("function"))
         # tamper as postgres owner: immutability trigger blocks; chain detects a forced change
@@ -199,7 +208,7 @@ def main():
             check("lead cannot direct other crew", lead.rpc("assignment_reassign", idempotency_key=k(), task_id=task2, to_profile_id=ids["other"]).get("error") == "GRND-403")
             r = lead.rpc("task_approve", idempotency_key=k(), task_id=task)
             check("task_approve -> done", r.get("ok") is True and r["data"]["state"] == "done", str(r)[:100])
-            check("EQ-01 released after approve", lead.q("select count(*) from public.asset_reservations where asset_id='EQ-01' and released_at is null")[0][0] == 0)
+            check("TST-EQ1 released after approve", lead.q("select count(*) from public.asset_reservations where asset_id='TST-EQ1' and released_at is null")[0][0] == 0)
             check("crew availability rows", lead.q("select count(*) from public.v_crew_availability")[0][0] >= 3)
         with As(conn, ids["sam"]) as sam:
             check("sam got reassigned_away notification", sam.q("select count(*) from public.outbox where topic = %s and event_type='reassigned_away'", "person:" + str(ids["sam"]))[0][0] >= 0)
@@ -228,7 +237,7 @@ def main():
         with As(conn, ids["chad"]) as chad:
             r = chad.rpc("certification_decide", idempotency_key=k(), request_id=req, approve=True, decision_notes="ok")
             check("admin approves -> certification", r.get("ok") and r["data"]["status"] == "approved" and chad.q("select valid from public.v_qualifications where profile_id=%s and capability_code='TOOLCAT'", ids["sam"])[0][0])
-            r = chad.rpc("task_create", idempotency_key=k(), zone_id="SW-1", task_type="mow", outcome="Handoff test task", required_capabilities=["TOOLCAT"], external_ref={"system": "TMA", "ref": "WO-77123", "url": "https://example.invalid/wo/77123"})
+            r = chad.rpc("task_create", idempotency_key=k(), zone_id="TEST-SW-1", task_type="mow", outcome="Handoff test task", required_capabilities=["TOOLCAT"], external_ref={"system": "TMA", "ref": "WO-77123", "url": "https://example.invalid/wo/77123"})
             check("task_create with external ref", r.get("ok") and r["data"]["external_ref"] == "WO-77123", str(r)[:160]); task3 = r["data"]["task_id"]
             r = chad.rpc("task_assign", idempotency_key=k(), task_id=task3, profile_id=ids["other"], override_qualification=True, expected_revision=1)
             check("task_assign override ignored -> GRND-423", r.get("error") == "GRND-423", str(r)[:120])

@@ -1,4 +1,4 @@
-# API contract v1.4: UND Grounds operations platform
+# API contract v1.5: UND Grounds operations platform
 
 Status: v1.0 published September 7, 2026; v1.1 the same day once migrations 0001 to 0009 were applied; v1.2 with migration 0010 (Mason's policy decisions and the answers to Codex's review in `docs/api-contract-changes.md`). Smoke test: 68 checks. Owner: Claude (database, functions, views). Consumer: Codex (worker app, dispatch screens).
 Governs: everything the client is allowed to call. If a screen needs something not in this document, ask for it in `docs/api-contract-changes.md` rather than inventing a query.
@@ -23,6 +23,7 @@ Live on the Supabase project `und-grounds` (URL and anon key are in the Mac chec
 | Realtime broadcasts from the outbox, `postgres_changes` on four tables (section 10) | implemented, not yet exercised from a real client | 0009 |
 | Certification requests and approvals, full-time defaults, oversight may direct work, Temp 2 handoff rule, `original_assignee`, external work order refs, `day_log`, `time_entries_confirm` (sections 2, 3.8, 4, 6, 11) | implemented | 0010 |
 | Campus events from calendar.und.edu and fightinghawks.com: `v_campus_events`, `v_event_reminders`, `v_event_sync_health`, `event_watch`, `event_reminder_ack`, daily sync, reminder ladder, sync alerts (section 12) | implemented | 0011, 0012 |
+| Equipment list with photos and holder avatars: `asset_upsert`, `media_upload_path`, `media_apply`, `v_assets` photo and holder fields, `avatar_path` on `v_me` and `v_crew_availability`, storage bucket `media` (section 13) | implemented | 0014 |
 | Push notifications, weather Edge Function, evidence export Edge Function, photo hash verification job | planned | |
 | Asset checkout screens, maintenance log, barcode, route guidance | not in this version | |
 
@@ -643,17 +644,40 @@ event_reminder_ack:  { idempotency_key, reminder_id } → { reminder_id }; GRND-
 
 Suggested screens: Planning (watched events by date with `days_until`, notes, a Watch toggle on any event, a button that calls `task_create` for the prep work and passes the result back through `event_watch.work_order_id`), an Open reminders strip on the dispatch board (`v_event_reminders?open=eq.true`), and the sync health line under Admin.
 
-## 13. What Codex can build now
+## 13. Equipment list, machine photos, people photos (v1.5)
 
-Against this document and the examples: login and profile screen, My Day list and task detail, shift start and stop with the staleness indicator, the proof of service form (before photo, after photo, quantity, notes, submit with pending state), the offline queue with the retry rules above, the dispatch board, the crew availability list, the assign and one-click reassign flow with the candidate picker, and the operating state banner. Use a local mock that returns the section 11 shapes and raises the section 1 errors.
+Equipment is a list, not map markers, until Mason places machines himself. `v_assets` is the whole list for any signed-in person; only admins add or edit. Every machine can carry one photo and every person one avatar, both in the private `media` bucket (8 MB, JPEG, PNG, WebP, HEIC). Paths are fixed by the server: `asset_photo/<ASSET-ID>/<uuid>.<ext>` and `avatar/<profile-id>/<uuid>.<ext>`; the old file stays in storage and `photo_path` simply moves to the new one. Read a file with `GET {url}/storage/v1/object/authenticated/media/<path>` and the user's bearer token; the response is the image bytes.
+
+```
+v_assets:            id, name, asset_type, class, make, model, year, serial, status, active, home_zone_id, location (GeoJSON point or null), hour_meter, barcode,
+                     required_capability_code, compatible_with text[], howto_md, notes, attrs, photo_path, photo_updated_at,
+                     holder_id, holder_name, holder_avatar_path, holder_task_id, holder_zone_id, in_use boolean, updated_at
+                     -- holder_* are the open reservation from task_assign(asset_id); released by task_approve, assignment_release, task_cancel
+v_me:                adds avatar_path
+v_crew_availability: adds avatar_path and holding jsonb [{ asset_id, name, class, task_id }]
+asset_upsert:        { idempotency_key, id text (^[A-Z]{2,4}-[0-9A-Za-z]{1,8}$, uppercase), name, asset_type, class, make?, model?, year?, serial?,
+                       required_capability_code?, compatible_with?, status?, home_zone_id?, location? (GeoJSON point), hour_meter?, barcode?, howto_md?, notes?, attrs?, active? }
+                     → { id, name, revision }     admin only; GRND-422 on a bad id or unknown type/status/capability
+media_upload_path:   { kind: 'asset_photo'|'avatar', target_id text (asset id or profile id), content_type? }
+                     → { bucket: 'media', path, upload: 'direct' }     asset_photo: admin; avatar: the person or admin
+                     then POST {url}/storage/v1/object/media/<path> with the bearer token, Content-Type, x-upsert: false, body = the file
+media_apply:         { idempotency_key, path } → { kind, target_id, path }     records the upload on the asset or profile; GRND-404 if the path was not registered by you, GRND-422 if the file is not in storage yet
+```
+
+Suggested screen: an Equipment entry in the left menu that lists `v_assets` ordered by class then name, each row with the photo, name and id, class, make, model, year, hours, a status pill (`in use` when `in_use`, otherwise `status`), and the holder's avatar and name with the zone they are in. Tapping a row opens the machine (how to run it, notes, serial, barcode). Admins get Add and Edit forms that call `asset_upsert` and the photo flow. A person's own avatar upload lives on the profile screen (`media_upload_path` with `kind: 'avatar'` and their own id).
+
+## 14. What Codex can build now
+
+Against this document and the examples: login and profile screen, My Day list and task detail, shift start and stop with the staleness indicator, the proof of service form (before photo, after photo, quantity, notes, submit with pending state), the offline queue with the retry rules above, the dispatch board, the crew availability list, the assign and one-click reassign flow with the candidate picker, the operating state banner, and the equipment list with photos (section 13). Use a local mock that returns the section 11 shapes and raises the section 1 errors.
 
 Do not build: anything that writes a table directly, any client-side geofence decision, anything that stores a hash or sequence, asset checkout, materials inventory screens, weather, or route guidance.
 
-## 14. Change log
+## 15. Change log
 
 | Version | Date | Change |
 |---|---|---|
 | 1.0 | 2026-09-07 | First publication. Nothing implemented yet; all items planned. |
+| 1.5 | 2026-09-07 | Migration 0014: `media` bucket, machine photos and people avatars, `asset_upsert`, `media_upload_path`, `media_apply`, `v_assets` rebuilt with photo and holder fields. Section 13. Placeholder map assets removed; the equipment list is empty until Mason adds machines. |
 | 1.4 | 2026-09-07 | Migration 0012: events rebuilt for two sources, athletics iCal (all sports, hockey included) with venue matching, sync health alerts, event ids are text. Smoke test 83 checks. |
 | 1.3 | 2026-09-07 | Migration 0011: campus events from calendar.und.edu with watch flags, reminder ladder, daily sync. Section 12. |
 | 1.2 | 2026-09-07 | Migration 0010. Certification approval flow with training outcomes, full-time defaults (all but CDL), no qualification override anywhere; Temp 2 to Temp 1 handoff only in landscaping mode; `original_assignee` and full handoff chain on every task; oversight may create, assign, reassign, release; external work order references on tasks and work orders; `day_log` in `shift_end`, `time_entries_confirm`, `v_time_entries`; originals uploaded not derivatives; evidence read rule; secure native storage wording; offline queue rules 9 to 12 answering Codex's review. |

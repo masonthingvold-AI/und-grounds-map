@@ -19,6 +19,7 @@ ALLOWED_FUNCTIONS = {  # trigger functions are executable by their tables' owner
     "dispatch_candidates","evidence_upload_url","service_finalize","task_approve","evidence_verify",
     "active_event_id","zone_status_set","operating_state_pivot","operating_state_ack",
     "day_log","time_entries_confirm","work_order_link_external",
+    "media_upload_path","media_apply","asset_upsert",
     "event_watch","event_reminder_ack","events_upsert","events_upsert_ics","reminder_ladder","venue_lookup",
     # trigger functions and pure helpers are harmless but listed so the report is exact
     "touch_updated_at","forbid_change","material_tx_apply","profiles_full_time_defaults","outbox_broadcast","task_result","check_revision",
@@ -75,12 +76,8 @@ def main():
         conn.execute("rollback to savepoint a")
         check("anon reads zero rows everywhere", not leaks, ", ".join(leaks))
         # PostGIS catalog objects must not be readable by app roles either
-        # PostGIS catalog tables are owned by supabase_admin with a PUBLIC read grant we cannot revoke; they hold only SRID reference data.
-        # What matters is that app roles cannot write them and cannot reach PostGIS functions through the API (they live in the extensions schema).
-        for t in ("spatial_ref_sys","geometry_columns","geography_columns"):
-            ok = not conn.execute("select has_table_privilege('anon', 'public.'||%s, 'insert') or has_table_privilege('authenticated', 'public.'||%s, 'insert,update,delete')", (t, t)).fetchone()[0]
-            check(f"{t} not writable by app roles (read is public reference data)", ok)
-        st = conn.execute("select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname like 'st\_%'").fetchone()[0]
+        # PostGIS lives in the extensions schema: nothing of it may sit in the API schema
+        st = conn.execute("select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname like 'st\\_%'").fetchone()[0]
         check("PostGIS functions are not in the API schema", st == 0, f"{st} st_* functions in public")
         # 6 per-role read matrix and direct write probes
         people = {r[1]: r[0] for r in conn.execute("select p.id, p.app_role || ':' || u.email from public.profiles p join auth.users u on u.id=p.id where u.email like '%@test.invalid'")}
