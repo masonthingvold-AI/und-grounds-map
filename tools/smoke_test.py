@@ -50,7 +50,7 @@ class As:
     def rpc(self, fn, **args):
         keys = ", ".join(f"{k} := %({k})s" for k in args)
         try:
-            r = self.conn.execute(f"select public.{fn}({keys})", {k: (json.dumps(v) if isinstance(v, dict) or (isinstance(v, list) and v and isinstance(v[0], dict)) or (k in ("samples","photos","materials") and isinstance(v, list)) else v) for k, v in args.items()}).fetchone()[0]
+            r = self.conn.execute(f"select public.{fn}({keys})", {k: (json.dumps(v) if isinstance(v, dict) or (isinstance(v, list) and v and isinstance(v[0], dict)) or (k in ("samples","photos","materials","outcomes_met","entries") and isinstance(v, list)) else v) for k, v in args.items()}).fetchone()[0]
             self.conn.execute("release savepoint u"); self.conn.execute("savepoint u"); self.conn.execute("set local role authenticated")
             self.conn.execute("select set_config('request.jwt.claims', %s, true)", (json.dumps({"sub": str(self.uid), "role": "authenticated"}),))
             return r
@@ -80,7 +80,9 @@ def main():
         # clean earlier runs of this test's tasks
         conn.execute("update public.tasks set state='canceled' where created_by = %s and state not in ('done','canceled')", (ids["chad"],))
         conn.execute("update public.shifts set ended_at = now() where profile_id = any(%s) and ended_at is null", (list(ids.values()),))
-        conn.execute("delete from public.certifications where profile_id = any(%s)", (list(ids.values()),))
+        conn.execute("delete from public.certifications where profile_id = any(%s) and source <> 'full_time_default'", (list(ids.values()),))
+        conn.execute("update public.certification_requests set status='withdrawn' where profile_id = any(%s) and status='pending'", (list(ids.values()),))
+        conn.execute("select public.grant_full_time_defaults(%s)", (ids["lead"],))
         conn.execute("update public.asset_reservations set released_at = now() where released_at is null and holder_id = any(%s)", (list(ids.values()),))
         conn.commit()
 
@@ -211,6 +213,53 @@ def main():
             check("worker cannot pivot", jordan.rpc("operating_state_pivot", idempotency_key=k(), expected_revision=1, to_mode="snow", reason="x").get("error") == "GRND-403")
             r = jordan.rpc("shift_end", idempotency_key=k(), shift_id=shift)
             check("shift_end", r.get("ok") is True and "duration_minutes" in r["data"], str(r)[:100])
+        # 6 policy decisions (migration 0010)
+        with As(conn, ids["lead"]) as lead:
+            check("full-time lead auto-holds everything but CDL", "CDL" not in lead.q("select capabilities from public.v_me")[0][0] and "BOBCAT" in lead.q("select capabilities from public.v_me")[0][0])
+            r = lead.rpc("certification_request", idempotency_key=k(), profile_id=ids["sam"], capability_code="TOOLCAT", outcomes_met=[])
+            check("cert request needs every outcome -> GRND-422", r.get("error") == "GRND-422", str(r)[:120])
+            outs = lead.q("select outcomes from public.v_capabilities where code='TOOLCAT'")[0][0]
+            r = lead.rpc("certification_request", idempotency_key=k(), profile_id=ids["sam"], capability_code="TOOLCAT", outcomes_met=outs, notes="ran the walk with Sam")
+            check("cert request pending", r.get("ok") and r["data"]["status"] == "pending", str(r)[:120]); req = r["data"]["request_id"]
+            check("lead cannot decide", lead.rpc("certification_decide", idempotency_key=k(), request_id=req, approve=True).get("error") == "GRND-403")
+        with As(conn, ids["chad"]) as chad:
+            r = chad.rpc("certification_decide", idempotency_key=k(), request_id=req, approve=True, decision_notes="ok")
+            check("admin approves -> certification", r.get("ok") and r["data"]["status"] == "approved" and chad.q("select valid from public.v_qualifications where profile_id=%s and capability_code='TOOLCAT'", ids["sam"])[0][0])
+            r = chad.rpc("task_create", idempotency_key=k(), zone_id="SW-1", task_type="mow", outcome="Handoff test task", required_capabilities=["TOOLCAT"], external_ref={"system": "TMA", "ref": "WO-77123", "url": "https://example.invalid/wo/77123"})
+            check("task_create with external ref", r.get("ok") and r["data"]["external_ref"] == "WO-77123", str(r)[:160]); task3 = r["data"]["task_id"]
+            r = chad.rpc("task_assign", idempotency_key=k(), task_id=task3, profile_id=ids["other"], override_qualification=True, expected_revision=1)
+            check("task_assign override ignored -> GRND-423", r.get("error") == "GRND-423", str(r)[:120])
+            r = chad.rpc("task_assign", idempotency_key=k(), task_id=task3, profile_id=ids["jordan"])
+            check("assign jordan (original)", r.get("ok") is True, str(r)[:100])
+            st = chad.q("select revision from public.v_operating_state")[0][0]
+            chad.rpc("operating_state_pivot", idempotency_key=k(), expected_revision=st, to_mode="snow", reason="handoff test")
+        with As(conn, ids["jordan"]) as jordan:
+            r = jordan.rpc("assignment_reassign", idempotency_key=k(), task_id=task3, to_profile_id=ids["sam"], reason="handing off")
+            check("temp2 handoff blocked in snow -> GRND-403", r.get("error") == "GRND-403", str(r)[:120])
+        with As(conn, ids["chad"]) as chad:
+            st = chad.q("select revision from public.v_operating_state")[0][0]
+            chad.rpc("operating_state_pivot", idempotency_key=k(), expected_revision=st, to_mode="landscaping", reason="handoff test")
+        with As(conn, ids["jordan"]) as jordan:
+            r = jordan.rpc("assignment_reassign", idempotency_key=k(), task_id=task3, to_profile_id=ids["sam"], reason="handing off")
+            check("temp2 handoff allowed in landscaping", r.get("ok") is True and str(r["data"].get("original_assignee_id")) == str(ids["jordan"]), str(r["data"])[:300])
+        with As(conn, ids["sam"]) as sam:
+            row = sam.q("select original_assignee_name, assignee_name, external_ref, external_system from public.v_my_day where task_id=%s", task3)[0]
+            check("original responsibility visible", row[0] == "Jordan Test" and row[1] == "Sam Test" and row[2] == "WO-77123", str(row))
+            r = sam.rpc("shift_start", idempotency_key=k(), device_id="sam-phone"); sshift = r["data"]["shift_id"]
+            r = sam.rpc("assignment_acknowledge", idempotency_key=k(), assignment_id=sam.q("select assignment_id from public.v_my_day where task_id=%s", task3)[0][0])
+            check("sam acknowledges handoff", r.get("ok") is True, str(r)[:120])
+            now_iso = sam.q("select now()")[0][0].isoformat()
+            r = sam.rpc("task_start", idempotency_key=k(), task_id=task3, location={"lng": -97.07, "lat": 47.92, "accuracy_m": 5, "taken_at": now_iso})
+            check("sam starts handoff task", r.get("ok") is True, str(r)[:120])
+            r = sam.rpc("shift_end", idempotency_key=k(), shift_id=sshift)
+            log = r.get("data", {}).get("day_log", {})
+            check("shift_end returns day log with the work order", r.get("ok") and any(t["external_ref"] == "WO-77123" for t in log.get("tasks", [])), str(log)[:200])
+            entries = [{"task_id": t["task_id"], "work_order_id": t["work_order_id"], "minutes": max(t["suggested_minutes"], 15), "suggested_minutes": t["suggested_minutes"], "external_ref": t["external_ref"]} for t in log.get("tasks", [])]
+            r = sam.rpc("time_entries_confirm", idempotency_key=k(), shift_id=sshift, entries=entries)
+            check("time entries confirmed", r.get("ok") and r["data"]["entries"] >= 1, str(r)[:120])
+            check("second confirm -> GRND-410", sam.rpc("time_entries_confirm", idempotency_key=k(), shift_id=sshift, entries=entries).get("error") == "GRND-410")
+        with As(conn, ids["chad"]) as chad:
+            chad.rpc("task_cancel", idempotency_key=k(), task_id=task3, reason="test cleanup")
         conn.commit()
     print(f"\n{sum(results)}/{len(results)} checks passed")
     sys.exit(0 if all(results) else 1)
