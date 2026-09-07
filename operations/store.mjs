@@ -1,0 +1,4 @@
+let dbPromise;
+function database(){return dbPromise??=new Promise((resolve,reject)=>{const request=indexedDB.open('und-grounds-live',1);request.onupgradeneeded=()=>request.result.createObjectStore('owner-data');request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});}
+export async function load(owner,key,fallback=null){const db=await database();return new Promise((resolve,reject)=>{const r=db.transaction('owner-data').objectStore('owner-data').get(owner+':'+key);r.onsuccess=()=>resolve(r.result??fallback);r.onerror=()=>reject(r.error);});}
+export async function save(owner,key,value){const db=await database();return new Promise((resolve,reject)=>{const t=db.transaction('owner-data','readwrite');t.objectStore('owner-data').put(value,owner+':'+key);t.oncomplete=resolve;t.onerror=()=>reject(t.error);});}
