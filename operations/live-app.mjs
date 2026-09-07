@@ -1,3 +1,4 @@
+import {showProof} from './proof.mjs';
 import {ShiftTracker,showDayLog} from './shifts.mjs';
 import {load,save} from './store.mjs';
 import {taskCards,taskDetail,fieldError} from './worker.mjs';
@@ -37,7 +38,7 @@ async function render(){
  tasks=await readView('v_my_day',{},'sort_key');if(version!==epoch)return;updateShell();
  $('#content').innerHTML=`<h1>My Day</h1><p>Welcome, ${esc(me.full_name)}.</p>${me.app_role!=='oversight'?`<div class=actions><button id=shift-action class=primary>${shift?'End shift':'Start shift'}</button>${shift?'<button id=track-location>Enable foreground location</button>':''}${dayLog?'<button id=review-time>Review unconfirmed time</button>':''}</div><p class=muted>${shift?(shift.location_stale?'Location stale':'Shift open'):'Off shift'} · Location runs only while this app is visible.</p>`:''}${taskCards(tasks)}`;
  if($('#shift-action'))$('#shift-action').onclick=shiftAction;if($('#track-location'))$('#track-location').onclick=()=>{tracker.start();notify('Foreground location enabled.');};if($('#review-time'))$('#review-time').onclick=()=>{route='day-log';render();};
- document.querySelectorAll('[data-task]').forEach(b=>b.onclick=()=>taskDetail(b.dataset.task,{read:readView,act,me,onLocation,proof:()=>notify('Completion form is being connected.')}));return;
+ document.querySelectorAll('[data-task]').forEach(b=>b.onclick=()=>taskDetail(b.dataset.task,{read:readView,act,me,onLocation,proof:task=>showProof(task,{owner:me.id})}));return;
  }
  $('#content').innerHTML='<h1>Workspace</h1><p class="muted">This screen is being connected to the live contract.</p>';
 }
