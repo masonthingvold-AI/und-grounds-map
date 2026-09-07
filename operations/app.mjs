@@ -1,3 +1,4 @@
+import {clearMap,showMap,showZone,showMessages,dashboard,promptShift} from './views.mjs';
 import {mountShell, navigationFor, humanError} from './shell.mjs';
 import {seed,workerId,adminId,candidates,drain} from './model.mjs';
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -13,6 +14,7 @@ async function command(fn,args){queue.push({id:crypto.randomUUID(),fn,args:{...a
 function tracking(){if(watch!==null){navigator.geolocation.clearWatch(watch);watch=null;}if(state.shift&&role==='worker'&&!document.hidden&&navigator.geolocation){watch=navigator.geolocation.watchPosition(p=>{location={lng:p.coords.longitude,lat:p.coords.latitude,accuracy_m:p.coords.accuracy,taken_at:new Date(p.timestamp).toISOString()};$('#gps')&&($('#gps').textContent='Device fix · ±'+Math.round(location.accuracy_m)+' m · not uploaded');},e=>notice('Location unavailable: '+e.message+'. You can still save photos and notes.'),{enableHighAccuracy:true,maximumAge:15000,timeout:15000});}}
 const freshLocation=()=>location&&Date.now()-Date.parse(location.taken_at)<30000?location:null;
 function render(){
+ clearMap();
  const allowed=navigationFor(role).flatMap(([, ,items])=>items.map(([id])=>id));
  if(!allowed.includes(tabName)&&!['queue','settings'].includes(tabName))tabName='day';
  history.replaceState(null,'','#'+tabName);
@@ -21,7 +23,11 @@ function render(){
  $('#content').innerHTML=`<h1>Settings</h1><p class="muted">Preview controls. These do not change live permissions.</p><label for="persona">Preview as</label><select id="persona"><option value="admin">Supervisor Test · Admin</option><option value="worker">Jordan Test · Temp 2</option></select><label><input type="checkbox" id="offline" ${offline?'checked':''}> Simulate no connection</label>`;
  $('#persona').value=role;$('#persona').onchange=e=>{role=e.target.value;tabName='day';trackingStop();render();};$('#offline').onchange=async e=>{offline=e.target.checked;await flush();render();};return;
  }
- if(tabName==='map'){$('#content').innerHTML='<h1>Campus map</h1><p class="muted">Existing map prototype. Shapes and map controls retain their original behavior.</p><iframe class="campus-map" title="UND campus map prototype" src="../index.html"></iframe>';return;}
+ if(tabName==='map'){showMap($('#content'));return;}
+ const visibleTasks=role==='admin'?state.tasks:state.tasks.filter(t=>t.assignee_id===workerId);
+ if(tabName==='status'){showZone($('#content'),visibleTasks,openTask,text=>{tabName='crew-lead';render();showMessages($('#content'),true,text);});return;}
+ if(['messages','crew-lead'].includes(tabName)){showMessages($('#content'),tabName==='crew-lead');return;}
+ if(tabName==='assets'){$('#content').innerHTML=`<p class="eyebrow">Equipment for your work</p><h1>Assets</h1><p class="muted">Synthetic assignment preview. Live asset availability and checkout are not connected.</p>${visibleTasks.filter(t=>t.asset_name).map(t=>`<article class="card"><h2>${esc(t.asset_name)}</h2><p>${esc(t.zone_name)}</p><p class="muted">${esc(t.outcome)}</p><button data-open="${t.task_id}">View assignment</button></article>`).join('')||'<p>No equipment assigned to your visible tasks.</p>'}`;document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openTask(b.dataset.open));return;}
  if(!['day','dispatch','queue'].includes(tabName)){
  const titles={status:'Zone status',people:'People',assets:'Assets',records:'Service records',evidence:'Evidence',certifications:'Certifications','keep-outs':'Keep-outs',mode:'Mode'};
  const notes={people:'People available to help and crews at a glance will live here.',mode:'The global operating mode will be managed here.',certifications:'Certification management is reserved for administrators.'};
@@ -34,7 +40,7 @@ function render(){
  ${tabName==='day'?`<div class="callout"><strong>${state.shift?'Shift open':'Shift not started'}</strong> · <span id="gps">${freshLocation()?'Device location available; not uploaded':'No fresh device location'}</span><br>Foreground location only. This preview does not send or retain your GPS trail.</div>`:''}
  <div class="stats"><div class="stat"><strong>${tasks.length}</strong><span>Open assignments</span></div><div class="stat"><strong>${tasks.filter(t=>t.priority===1).length}</strong><span>Priority 1</span></div><div class="stat"><strong>${tasks.filter(t=>t.season!==state.mode).length}</strong><span>Season carryover</span></div></div><div class="cards">${tasks.map((t,index)=>`<article class="card">${tabName==='day'&&index===1?'<p class="eyebrow">After this</p>':''}<div class="card-head"><span class="tag">Priority ${t.priority} · ${esc(t.zone_id)}</span><span class="state ${t.state}">${esc(t.state.replace('_',' '))}${pending(t)?' · saved action':''}</span></div><p><strong>${esc(t.outcome)}</strong></p><div class="muted">${esc(t.zone_name)}${t.season!==state.mode?' · Carryover work':''}<br>${esc(t.asset_name||'No equipment assigned')}${tabName==='dispatch'?'<br>'+esc(state.people.find(p=>p.profile_id===t.assignee_id)?.full_name||'Unassigned'):''}</div><div class="card-foot">${role==='admin'?`<small>${esc(t.required_capabilities.join(' · '))}</small>`:''}<button data-open="${t.task_id}">${tabName==='dispatch'?'Manage assignment':'View task'} →</button></div></article>`).join('')||'<div class="card">No open tasks. Your supervisor can assign the next job.</div>'}</div>`;
  document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openTask(b.dataset.open));
- if(tabName==='day'){$('#content').insertAdjacentHTML('beforeend','<div class=crew-help><button id=ask-lead>Ask my crew lead</button></div>');$('#ask-lead').onclick=()=>notice('Crew messaging is planned. No message has been sent.');}
+ if(tabName==='day')dashboard($('#content'),state);
  if($('#shift'))$('#shift').onclick=async()=>{if(state.shift){trackingStop();await command('shift_end',{shift_id:state.shift.shift_id});notice('Shift end saved. Unfinished assignments remain visible.');}else{await command('shift_start',{device_id:'local-preview'});tracking();}};
  if($('#pivot'))$('#pivot').onclick=()=>command('operating_state_pivot',{expected_revision:state.revision,to_mode:state.mode==='snow'?'landscaping':'snow',reason:'Synthetic preview toggle'});
 }
@@ -62,4 +68,5 @@ async function openTask(id){const t=state.tasks.find(x=>x.task_id===id);const d=
 }
 window.addEventListener('online',()=>{flush();render();});window.addEventListener('offline',render);document.addEventListener('visibilitychange',tracking);
 setInterval(()=>{if(!document.hidden){if($('#gps'))$('#gps').textContent=freshLocation()?'Device fix · ±'+Math.round(location.accuracy_m)+' m · not uploaded':'No fresh device location';if(queue.some(c=>c.status==='pending'))flush();}},30000);
-render();await flush();tracking();
+render();await flush();
+promptShift(async()=>{role='worker';tabName='day';if(!state.shift)await command('shift_start',{device_id:'local-preview'});render();});

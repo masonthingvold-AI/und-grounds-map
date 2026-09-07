@@ -50,3 +50,13 @@ Status: accepted in v1.2 unless noted
 - Evidence download: createSignedUrl on the path; RLS on the bucket decides. Section 7.2b.
 - Zone selector for task_create: v_zones (section 3.7) is the read model; filter by class and site.
 - Not accepted: a separate "public wrapper" layer. Names already match.
+
+## 2026-09-07, requested by Mason through Codex
+Status: proposed
+Function or view: Messages, schedule and device sign-in
+Reason: Mason requests crew messaging, crew-lead questions, personal events and meetings in My Day, and Face ID after the opening Start shift prompt.
+Proposed shape:
+- Publish authorized conversation/message reads and send RPC, crew-lead recipient resolution, realtime topics, retention and offline ownership rules. The UI currently saves session-only drafts and sends nothing.
+- Publish a personal schedule view with event ID, start/end timestamps, timezone, title, location, cancellation and source. Unconnected is not equivalent to an empty schedule.
+- Add passkey registration/assertion challenge endpoints and verified session integration, or native biometric unlocking of a securely stored authenticated session. Require authentication before shift_start; Face ID is device-managed and must not be simulated as successful authentication. Preserve a supported fallback and recovery path. Current contract only supports password login.
+- Confirm the final grounds service boundary. New map review shows only main-site und_state parcels without city tiles; parcel inventory does not settle all operational coverage.

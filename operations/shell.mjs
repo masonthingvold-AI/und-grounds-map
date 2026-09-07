@@ -1,7 +1,8 @@
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const groups = [
- ['WORK', null, [['day','My Day','sun'],['map','Map','map'],['status','Zone status','layers']]],
- ['DISPATCH',['lead','admin'],[['dispatch','Board','columns-3'],['people','People','users'],['assets','Assets','tractor']]],
+ ['WORK', null, [['day','My Day','sun'],['map','Map','map'],['status','Zone status','layers'],['assets','Assets','tractor']]],
+ ['CONNECT',null,[['messages','Messages','messages-square'],['crew-lead','Ask my crew lead','message-circle']]],
+ ['DISPATCH',['lead','admin'],[['dispatch','Board','columns-3'],['people','People','users']]],
  ['RECORDS',['lead','admin','oversight'],[['records','Service records','clipboard-list'],['evidence','Evidence','camera']]],
  ['ADMIN',['admin'],[['certifications','Certifications','badge-check'],['keep-outs','Keep-outs','octagon-alert'],['mode','Mode','snowflake']]]
 ];
@@ -26,7 +27,7 @@ export function mountShell(root, {onNavigate, onSignOut}) {
   const groupsHTML = navigationFor(state.me?.app_role).map(([label,,items])=>`<div class="g-group"><p class="slabel">${label}</p>${items.map(item=>row(item)).join('')}</div>`).join('');
   rail.innerHTML = person()+'<div class="g-links">'+groupsHTML+'</div>'+footer();
   root.querySelector('.g-more-content').innerHTML = person()+`<nav aria-label="More destinations">${groupsHTML}</nav>`+footer();
-  const tabs = [...groups[0][2], ...(navigationFor(state.me?.app_role).some(([name])=>name==='DISPATCH')?[groups[1][2][0]]:[])];
+  const tabs = [...groups[0][2].slice(0,3), ...(navigationFor(state.me?.app_role).some(([name])=>name==='DISPATCH')?[['dispatch','Board','columns-3']]:[])];
   root.querySelector('.g-bottom').innerHTML = tabs.map(item=>row(item,true)).join('')+`<a href="#more" data-action="more" aria-haspopup="dialog">${icon('menu')}<span>More</span></a>`;
   avatar.textContent = (state.me?.full_name || 'Guest').split(' ').map(p=>p[0]).slice(0,2).join('');
   root.querySelector('.inner').classList.toggle('wide',['map','dispatch','people','assets'].includes(state.route));
